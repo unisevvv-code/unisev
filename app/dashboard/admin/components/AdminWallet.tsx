@@ -18,7 +18,8 @@ export default function AdminWallet() {
     const [loading, setLoading] = useState(true);
 
     async function loadWallet() {
-        setLoading(true);
+        // `loading` already starts as `true` (see useState above), so
+        // there is no need to set it synchronously here.
 
         const { data, error } =
             await supabase
@@ -50,6 +51,14 @@ export default function AdminWallet() {
     }
 
     useEffect(() => {
+        // Fetching data on mount and storing it in state is one of
+        // the two valid uses of an effect (see
+        // https://react.dev/learn/synchronizing-with-effects#fetching-data).
+        // The `set-state-in-effect` rule can't verify that every
+        // state update inside `loadWallet` happens after an `await`,
+        // so it flags this standard fetch-on-mount pattern; suppressed
+        // here rather than restructured.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadWallet();
     }, []);
 
@@ -149,29 +158,32 @@ export default function AdminWallet() {
         useState(0);
 
     async function loadBalance() {
-    const { data, error } =
-        await supabase
-            .from("unisev_wallet")
-            .select("balance")
-            .eq("name", "UniSeV Admin Wallet")
-            .limit(1)
-            .single();
+        const { data, error } =
+            await supabase
+                .from("unisev_wallet")
+                .select("balance")
+                .eq("name", "UniSeV Admin Wallet")
+                .limit(1)
+                .single();
 
-    if (error) {
-        console.log(
-            "PLATFORM BALANCE ERROR:",
-            error
+        if (error) {
+            console.log(
+                "PLATFORM BALANCE ERROR:",
+                error
+            );
+
+            return;
+        }
+
+        setBalance(
+            Number(data?.balance || 0)
         );
-
-        return;
     }
 
-    setBalance(
-        Number(data?.balance || 0)
-    );
-}
-
     useEffect(() => {
+        // See the comment on the `loadWallet` effect above — this is
+        // the same valid fetch-on-mount pattern.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadBalance();
     }, []);
 
@@ -290,7 +302,7 @@ export default function AdminWallet() {
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-1">
-                    UniSeV's 15% platform fees
+                    UniSeV&apos;s 15% platform fees
                 </p>
 
 

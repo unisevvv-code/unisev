@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -11,6 +11,123 @@ import AdminWallet from "./components/AdminWallet";
 import AdminStudents from "./components/AdminStudents";
 import AdminTasks from "./components/AdminTasks";
 import AdminPayments from "./components/AdminPayments";
+
+// ==================================================
+// TYPES
+// ==================================================
+
+interface Profile {
+    id: string;
+    full_name?: string | null;
+    university?: string | null;
+    student_id?: string | null;
+    phone?: string | null;
+    department?: string | null;
+    level?: string | null;
+    bio?: string | null;
+    skills?: string | null;
+    verification_status?: string | null;
+    created_at?: string | null;
+}
+
+interface StudentVerification {
+    id: string;
+    user_id: string;
+    status: string;
+    document_url?: string | null;
+}
+
+interface CombinedStudent extends StudentVerification {
+    full_name: string;
+    university: string;
+    student_id: string;
+    phone: string;
+    department: string;
+    level: string;
+    bio: string;
+    skills: string;
+}
+
+interface Task {
+    id: string;
+    title?: string | null;
+    category?: string | null;
+    status?: string | null;
+    created_at?: string | null;
+}
+
+interface EscrowPayment {
+    id: string;
+    task_id?: string | null;
+    client_id?: string | null;
+    student_id?: string | null;
+    amount: number;
+    status: string;
+    released_at?: string | null;
+    created_at?: string | null;
+}
+
+interface CombinedPayment extends EscrowPayment {
+    task_title: string | null;
+    task_category: string | null;
+    task_created_at: string | null;
+    client_name: string | null;
+    student_name: string | null;
+}
+
+// ==================================================
+// DISPLAY MAPPERS
+//
+// The child components (AdminStudents, AdminTasks,
+// AdminPayments) declare their optional string fields
+// as `string | undefined`, while Supabase returns
+// `string | null` for empty columns. These mappers
+// convert `null` -> `undefined` right before the data
+// is handed to those components.
+// ==================================================
+
+function toDisplayStudent(profile: Profile) {
+    return {
+        id: profile.id,
+        full_name: profile.full_name ?? undefined,
+        university: profile.university ?? undefined,
+        student_id: profile.student_id ?? undefined,
+        phone: profile.phone ?? undefined,
+        department: profile.department ?? undefined,
+        level: profile.level ?? undefined,
+        verification_status:
+            profile.verification_status ?? undefined,
+        created_at: profile.created_at ?? undefined,
+    };
+}
+
+function toDisplayTask(task: Task) {
+    return {
+        id: task.id,
+        title: task.title ?? undefined,
+        category: task.category ?? undefined,
+        status: task.status ?? undefined,
+        created_at: task.created_at ?? undefined,
+    };
+}
+
+function toDisplayPayment(payment: CombinedPayment) {
+    return {
+        id: payment.id,
+        task_id: payment.task_id ?? undefined,
+        client_id: payment.client_id ?? undefined,
+        student_id: payment.student_id ?? undefined,
+        amount: payment.amount,
+        status: payment.status,
+        released_at: payment.released_at ?? undefined,
+        created_at: payment.created_at ?? undefined,
+        task_title: payment.task_title ?? undefined,
+        task_category: payment.task_category ?? undefined,
+        task_created_at: payment.task_created_at ?? undefined,
+        client_name: payment.client_name ?? undefined,
+        student_name: payment.student_name ?? undefined,
+    };
+}
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -26,16 +143,16 @@ export default function AdminDashboard() {
         useState(false);
 
     const [students, setStudents] =
-        useState<any[]>([]);
+        useState<CombinedStudent[]>([]);
 
     const [allStudents, setAllStudents] =
-        useState<any[]>([]);
+        useState<Profile[]>([]);
 
     const [tasksList, setTasksList] =
-        useState<any[]>([]);
+        useState<Task[]>([]);
 
     const [paymentsList, setPaymentsList] =
-        useState<any[]>([]);
+        useState<CombinedPayment[]>([]);
 
     const [loading, setLoading] =
         useState(true);
@@ -68,57 +185,13 @@ export default function AdminDashboard() {
         useState(0);
 
     const [walletTransactions, setWalletTransactions] =
-        useState<any[]>([]);
-
-    // ==================================================
-    // ADMIN CHECK
-    // ==================================================
-
-    useEffect(() => {
-        checkAdmin();
-    }, []);
-
-    async function checkAdmin() {
-        setLoading(true);
-
-        const { data: userData } =
-            await supabase.auth.getUser();
-
-        if (!userData.user) {
-            router.push("/auth");
-            return;
-        }
-
-        const { data, error } =
-            await supabase
-                .from("profiles")
-                .select("role")
-                .eq("id", userData.user.id)
-                .single();
-
-        console.log("Admin Profile:", data);
-
-        if (error || data?.role !== "admin") {
-            router.push("/dashboard/student");
-            return;
-        }
-
-        await Promise.all([
-            loadStudents(),
-            loadOverview(),
-            loadAllStudents(),
-            loadTasksList(),
-            loadPayments(),
-        ]);
-
-        setLoading(false);
-    }
+        useState<EscrowPayment[]>([]);
 
     // ==================================================
     // LOAD ADMIN OVERVIEW
     // ==================================================
 
-    async function loadOverview() {
+    const loadOverview = useCallback(async () => {
         // ----------------------------------------------
         // TOTAL STUDENTS
         // ----------------------------------------------
@@ -279,7 +352,7 @@ export default function AdminDashboard() {
             return;
         }
 
-        const releasedPayments =
+        const releasedPayments: EscrowPayment[] =
             payments || [];
 
         setWalletTransactions(
@@ -296,7 +369,7 @@ export default function AdminDashboard() {
             releasedPayments.reduce(
                 (
                     sum: number,
-                    payment: any
+                    payment: EscrowPayment
                 ) => {
                     const amount =
                         Number(
@@ -355,7 +428,7 @@ export default function AdminDashboard() {
             releasedPayments.reduce(
                 (
                     sum: number,
-                    payment: any
+                    payment: EscrowPayment
                 ) => {
                     if (
                         !payment.released_at
@@ -400,7 +473,7 @@ export default function AdminDashboard() {
             releasedPayments.reduce(
                 (
                     sum: number,
-                    payment: any
+                    payment: EscrowPayment
                 ) => {
                     if (
                         !payment.released_at
@@ -436,13 +509,13 @@ export default function AdminDashboard() {
         setLastMonthRevenue(
             lastMonth
         );
-    }
+    }, []);
 
     // ==================================================
     // LOAD STUDENT VERIFICATIONS (pending queue)
     // ==================================================
 
-    async function loadStudents() {
+    const loadStudents = useCallback(async () => {
         const {
             data: verifications,
             error: verificationError,
@@ -471,11 +544,12 @@ export default function AdminDashboard() {
             return;
         }
 
-        const userIds =
-            verifications.map(
-                (verification) =>
-                    verification.user_id
-            );
+        const userIds = (
+            verifications as StudentVerification[]
+        ).map(
+            (verification) =>
+                verification.user_id
+        );
 
         const {
             data: profiles,
@@ -506,64 +580,66 @@ export default function AdminDashboard() {
             return;
         }
 
-        const combinedStudents =
-            verifications.map(
-                (verification) => {
-                    const profile =
-                        profiles?.find(
-                            (profile) =>
-                                profile.id ===
-                                verification.user_id
-                        );
+        const combinedStudents: CombinedStudent[] = (
+            verifications as StudentVerification[]
+        ).map(
+            (verification) => {
+                const profile = (
+                    profiles as Profile[] | null
+                )?.find(
+                    (profile) =>
+                        profile.id ===
+                        verification.user_id
+                );
 
-                    return {
-                        ...verification,
+                return {
+                    ...verification,
 
-                        full_name:
-                            profile?.full_name ||
-                            "Not provided",
+                    full_name:
+                        profile?.full_name ||
+                        "Not provided",
 
-                        university:
-                            profile?.university ||
-                            "Not provided",
+                    university:
+                        profile?.university ||
+                        "Not provided",
 
-                        student_id:
-                            profile?.student_id ||
-                            "Not provided",
+                    student_id:
+                        profile?.student_id ||
+                        "Not provided",
 
-                        phone:
-                            profile?.phone ||
-                            "Not provided",
+                    phone:
+                        profile?.phone ||
+                        "Not provided",
 
-                        department:
-                            profile?.department ||
-                            "Not provided",
+                    department:
+                        profile?.department ||
+                        "Not provided",
 
-                        level:
-                            profile?.level ||
-                            "Not provided",
+                    level:
+                        profile?.level ||
+                        "Not provided",
 
-                        bio:
-                            profile?.bio ||
-                            "Not provided",
+                    bio:
+                        profile?.bio ||
+                        "Not provided",
 
-                        skills:
-                            profile?.skills ||
-                            "Not provided",
-                    };
-                }
-            );
+                    skills:
+                        profile?.skills ||
+                        "Not provided",
+                };
+            }
+        );
 
         setStudents(
             combinedStudents
         );
-    }
+    }, []);
 
     // ==================================================
     // LOAD ALL STUDENTS (for the Students tab)
     // ==================================================
 
-    async function loadAllStudents() {
+    const loadAllStudents = useCallback(async () => {
         const {
             data: profiles,
             error: profileError,
@@ -599,13 +675,13 @@ export default function AdminDashboard() {
         setAllStudents(
             profiles || []
         );
-    }
+    }, []);
 
     // ==================================================
     // LOAD TASKS (for the Tasks tab)
     // ==================================================
 
-    async function loadTasksList() {
+    const loadTasksList = useCallback(async () => {
         const {
             data: tasksData,
             error: tasksError,
@@ -630,13 +706,13 @@ export default function AdminDashboard() {
         setTasksList(
             tasksData || []
         );
-    }
+    }, []);
 
     // ==================================================
     // LOAD PAYMENTS (for the Payments tab)
     // ==================================================
 
-    async function loadPayments() {
+    const loadPayments = useCallback(async () => {
         const {
             data: paymentsData,
             error: paymentsError,
@@ -658,7 +734,7 @@ export default function AdminDashboard() {
             return;
         }
 
-        const payments =
+        const payments: EscrowPayment[] =
             paymentsData || [];
 
         if (payments.length === 0) {
@@ -669,10 +745,10 @@ export default function AdminDashboard() {
 
         const taskIds = payments
             .map(
-                (payment: any) =>
+                (payment) =>
                     payment.task_id
             )
-            .filter(Boolean);
+            .filter(Boolean) as string[];
 
         const {
             data: tasksData,
@@ -696,12 +772,12 @@ export default function AdminDashboard() {
 
         const profileIds = payments
             .flatMap(
-                (payment: any) => [
+                (payment) => [
                     payment.client_id,
                     payment.student_id,
                 ]
             )
-            .filter(Boolean);
+            .filter(Boolean) as string[];
 
         const {
             data: profilesData,
@@ -721,29 +797,32 @@ export default function AdminDashboard() {
             );
         }
 
-        const combinedPayments =
+        const combinedPayments: CombinedPayment[] =
             payments.map(
-                (payment: any) => {
-                    const task =
-                        tasksData?.find(
-                            (task) =>
-                                task.id ===
-                                payment.task_id
-                        );
+                (payment) => {
+                    const task = (
+                        tasksData as Task[] | null
+                    )?.find(
+                        (task) =>
+                            task.id ===
+                            payment.task_id
+                    );
 
-                    const client =
-                        profilesData?.find(
-                            (profile) =>
-                                profile.id ===
-                                payment.client_id
-                        );
+                    const client = (
+                        profilesData as Profile[] | null
+                    )?.find(
+                        (profile) =>
+                            profile.id ===
+                            payment.client_id
+                    );
 
-                    const student =
-                        profilesData?.find(
-                            (profile) =>
-                                profile.id ===
-                                payment.student_id
-                        );
+                    const student = (
+                        profilesData as Profile[] | null
+                    )?.find(
+                        (profile) =>
+                            profile.id ===
+                            payment.student_id
+                    );
 
                     return {
                         ...payment,
@@ -774,7 +853,69 @@ export default function AdminDashboard() {
         setPaymentsList(
             combinedPayments
         );
-    }
+    }, []);
+
+    // ==================================================
+    // ADMIN CHECK
+    // ==================================================
+
+    const checkAdmin = useCallback(async () => {
+        // `loading` already starts as `true` (see useState above), so
+        // there is no need to set it synchronously here — doing so
+        // inside the effect-invoked function before the first `await`
+        // is what triggers the `set-state-in-effect` lint warning.
+
+        const { data: userData } =
+            await supabase.auth.getUser();
+
+        if (!userData.user) {
+            router.push("/auth");
+            return;
+        }
+
+        const { data, error } =
+            await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", userData.user.id)
+                .single();
+
+        console.log("Admin Profile:", data);
+
+        if (error || data?.role !== "admin") {
+            router.push("/dashboard/student");
+            return;
+        }
+
+        await Promise.all([
+            loadStudents(),
+            loadOverview(),
+            loadAllStudents(),
+            loadTasksList(),
+            loadPayments(),
+        ]);
+
+        setLoading(false);
+    }, [
+        router,
+        loadStudents,
+        loadOverview,
+        loadAllStudents,
+        loadTasksList,
+        loadPayments,
+    ]);
+
+    useEffect(() => {
+        // Fetching data on mount and storing it in state is one of
+        // the two valid uses of an effect (see
+        // https://react.dev/learn/synchronizing-with-effects#fetching-data).
+        // The `set-state-in-effect` rule can't verify that every
+        // state update inside `checkAdmin` happens after an `await`,
+        // so it flags this standard fetch-on-mount pattern; suppressed
+        // here rather than restructured.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        checkAdmin();
+    }, [checkAdmin]);
 
     async function approveStudent(
         id: string,
@@ -1097,34 +1238,32 @@ export default function AdminDashboard() {
                 );
 
             case "wallet":
-                return (
-                    <AdminWallet
-                        totalRevenue={totalRevenue}
-                        lastMonthRevenue={lastMonthRevenue}
-                        thisMonthRevenue={thisMonthRevenue}
-                        balance={balance}
-                        transactions={walletTransactions}
-                    />
-                );
+                return <AdminWallet />;
 
             case "students":
                 return (
                     <AdminStudents
-                        students={allStudents}
+                        students={allStudents.map(
+                            toDisplayStudent
+                        )}
                     />
                 );
 
             case "tasks":
                 return (
                     <AdminTasks
-                        tasks={tasksList}
+                        tasks={tasksList.map(
+                            toDisplayTask
+                        )}
                     />
                 );
 
             case "payments":
                 return (
                     <AdminPayments
-                        payments={paymentsList}
+                        payments={paymentsList.map(
+                            toDisplayPayment
+                        )}
                     />
                 );
 

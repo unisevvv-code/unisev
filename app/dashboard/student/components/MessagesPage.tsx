@@ -43,6 +43,12 @@ interface SignedUrlResult {
   error?: string | null;
 }
 
+interface ActiveApplication {
+  id: string;
+  status: string;
+  tasks: { client_id: string } | null;
+}
+
 export default function MessagesPage() {
   const [allMessages, setAllMessages] =
     useState<Message[]>([]);
@@ -98,6 +104,14 @@ export default function MessagesPage() {
   const [showChatOnMobile, setShowChatOnMobile] =
     useState(false);
 
+  // If the open chat disappears (e.g. its task just got marked
+  // complete and it dropped out of chatList), this derived value
+  // falls back to the list view on mobile instead of showing an
+  // empty conversation — computed during render rather than synced
+  // via an effect, since it's purely a function of existing state.
+  const showMobileChat =
+    showChatOnMobile && !!selectedChat;
+
   const textareaRef =
     useRef<HTMLTextAreaElement>(null);
 
@@ -128,15 +142,6 @@ export default function MessagesPage() {
   useEffect(() => {
     selectedRef.current =
       selectedChat;
-  }, [selectedChat]);
-
-  // If the open chat disappears (e.g. its task just got marked
-  // complete and it dropped out of chatList), fall back to the
-  // list view on mobile instead of showing an empty conversation.
-  useEffect(() => {
-    if (!selectedChat) {
-      setShowChatOnMobile(false);
-    }
   }, [selectedChat]);
 
   useEffect(() => {
@@ -288,8 +293,11 @@ export default function MessagesPage() {
       }
 
       const activeClientIds = new Set(
-        (activeApplications || []).map(
-          (app: any) => app.tasks?.client_id
+        (
+          (activeApplications as unknown as ActiveApplication[]) ||
+          []
+        ).map(
+          (app) => app.tasks?.client_id
         )
       );
 
@@ -534,7 +542,7 @@ export default function MessagesPage() {
           overflow-y-auto
           sm:block
           sm:w-72
-          ${showChatOnMobile ? "hidden" : "block"}
+          ${showMobileChat ? "hidden" : "block"}
         `}
       >
 
@@ -646,7 +654,7 @@ export default function MessagesPage() {
           flex-col
           overflow-hidden
           sm:flex
-          ${showChatOnMobile ? "flex" : "hidden"}
+          ${showMobileChat ? "flex" : "hidden"}
         `}
       >
 
@@ -834,7 +842,7 @@ export default function MessagesPage() {
                         className={
                           isEmojiOnly(msg.message)
                             ? "text-4xl leading-normal"
-                            : "break-words"
+                            : "wrap-break-word"
                         }
                       >
                         {msg.message}

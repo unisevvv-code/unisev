@@ -33,12 +33,25 @@ import StudentProfilePreview from "./components/StudentProfilePreview";
 
 interface Task {
     id: string;
-    title: string;
-    description?: string;
     status: string;
-    budget?: number;
-    deadline?: string;
-    created_at?: string;
+    title: string;
+    category: string;
+    description: string;
+    created_at: string;
+    task_type?: "single" | "multi" | null;
+
+    // Single-task fields
+    recommended_price?: number | null;
+    budget?: number | null;
+    expected_day?: number | string | null;
+    expected_month?: number | string | null;
+
+    // Multi-task fields
+    reward_per_participant?: number | null;
+    duration_minutes?: number | null;
+    current_participants?: number | null;
+    max_participants?: number | null;
+
     [key: string]: unknown;
 }
 
@@ -78,6 +91,82 @@ interface EscrowPaymentRow {
     status: string;
     created_at: string;
     tasks?: { title: string };
+}
+
+// ==========================================
+// DISPLAY MAPPER — MyTasks
+//
+// MyTasks.tsx declares its own local Task type where
+// `recommended_price`, `expected_day`, and `expected_month` are
+// `undefined`-only (no `null`), while this file's Task type allows
+// `null` for those (to match what BrowseTasks expects instead).
+// This mapper bridges the two right before handing data to MyTasks.
+// ==========================================
+
+interface MyTaskDisplayTask {
+    id?: string;
+    title?: string;
+    category?: string;
+    description?: string;
+    recommended_price?: number;
+    expected_day?: string | number;
+    expected_month?: string | number;
+    attachments?: string[];
+    task_type?: string | null;
+    max_participants?: number | null;
+    current_participants?: number | null;
+    reward_per_participant?: number | null;
+    duration_minutes?: number | null;
+}
+
+interface MyTaskDisplay {
+    id: string;
+    status?: string;
+    client_status?: string;
+    completion_requested_at?: string | null;
+    asking_price?: number | string | null;
+    tasks?: MyTaskDisplayTask;
+}
+
+function toDisplayMyTask(app: Application): MyTaskDisplay {
+    const task = app.tasks;
+
+    return {
+        id: app.id,
+        status: app.status,
+        client_status: app.client_status as string | undefined,
+        completion_requested_at:
+            (app.completion_requested_at as
+                | string
+                | null
+                | undefined) ?? null,
+        asking_price: app.asking_price ?? null,
+        tasks: task
+            ? {
+                  id: task.id,
+                  title: task.title,
+                  category: task.category,
+                  description: task.description,
+                  recommended_price:
+                      task.recommended_price ?? undefined,
+                  expected_day:
+                      task.expected_day ?? undefined,
+                  expected_month:
+                      task.expected_month ?? undefined,
+                  attachments:
+                      task.attachments as
+                          | string[]
+                          | undefined,
+                  task_type: task.task_type,
+                  max_participants: task.max_participants,
+                  current_participants:
+                      task.current_participants,
+                  reward_per_participant:
+                      task.reward_per_participant,
+                  duration_minutes: task.duration_minutes,
+              }
+            : undefined,
+    };
 }
 
 
@@ -931,9 +1020,9 @@ export default function StudentDashboard() {
             case "mytasks":
                 return (
                     <MyTasks
-                        myTasks={
-                            myTasks
-                        }
+                        myTasks={myTasks.map(
+                            toDisplayMyTask
+                        )}
                     />
                 );
 

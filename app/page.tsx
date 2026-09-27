@@ -13,8 +13,26 @@ const sans = Inter({
 });
 
 export default function Home() {
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "UniSeV",
+    url: "https://unisev.vercel.app",
+    description:
+      "UniSeV connects students and clients through a marketplace for tasks, services, and opportunities.",
+  };
+
   return (
-    <main
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(websiteSchema),
+        }}
+      />
+
+      <main
+
       className={`
         ${serif.variable} ${sans.variable}
         min-h-screen
@@ -761,6 +779,7 @@ export default function Home() {
 
       </footer>
 
-    </main>
+          </main>
+    </>
   );
 }

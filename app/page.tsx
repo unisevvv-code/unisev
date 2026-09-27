@@ -193,7 +193,7 @@ export default function Home() {
                 sm:max-w-none
               "
             >
-              Campus tasks, solved by the students next door.
+              Student-Powered Marketplace.
             </h1>
 
             <p

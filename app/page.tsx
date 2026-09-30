@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Source_Serif_4, Inter } from "next/font/google";
 
 const serif = Source_Serif_4({
@@ -36,7 +37,7 @@ export default function Home() {
       className={`
         ${serif.variable} ${sans.variable}
         min-h-screen
-        font-[family-name:var(--font-sans)]
+        font-sans
         text-[#14213D]
       `}
       style={{ backgroundColor: "#FBFAF7" }}
@@ -62,9 +63,12 @@ export default function Home() {
       >
 
         <div className="flex items-center shrink-0">
-          <img
+          <Image
             src="/unisev-logo.png"
             alt="UniSeV"
+            width={160}
+            height={56}
+            priority
             className="h-9 sm:h-14 w-auto object-contain"
           />
         </div>
@@ -82,7 +86,6 @@ export default function Home() {
               pb-1
               hover:border-[#C98A1B]
               hover:text-white
-              focus-visible:outline
               focus-visible:outline-2
               focus-visible:outline-offset-4
               focus-visible:outline-[#C98A1B]
@@ -103,7 +106,6 @@ export default function Home() {
               pb-1
               hover:border-[#C98A1B]
               hover:text-white
-              focus-visible:outline
               focus-visible:outline-2
               focus-visible:outline-offset-4
               focus-visible:outline-[#C98A1B]
@@ -124,7 +126,6 @@ export default function Home() {
               pb-1
               hover:border-[#C98A1B]
               hover:text-white
-              focus-visible:outline
               focus-visible:outline-2
               focus-visible:outline-offset-4
               focus-visible:outline-[#C98A1B]
@@ -153,7 +154,6 @@ export default function Home() {
             text-sm
             sm:text-[15px]
             transition-colors
-            focus-visible:outline
             focus-visible:outline-2
             focus-visible:outline-offset-2
             focus-visible:outline-white
@@ -177,7 +177,7 @@ export default function Home() {
           sm:px-10
           pb-16
           sm:pb-24
-          max-w-[1200px]
+          max-w-300
           mx-auto
         "
       >
@@ -199,7 +199,7 @@ export default function Home() {
 
             <h1
               className="
-                font-[family-name:var(--font-serif)]
+                font-serif
                 text-[2rem]
                 sm:text-[3.1rem]
                 lg:text-[3.4rem]
@@ -253,7 +253,6 @@ export default function Home() {
                   font-semibold
                   no-underline
                   transition-colors
-                  focus-visible:outline
                   focus-visible:outline-2
                   focus-visible:outline-offset-2
                   focus-visible:outline-[#14213D]
@@ -275,7 +274,6 @@ export default function Home() {
                   font-semibold
                   no-underline
                   transition-colors
-                  focus-visible:outline
                   focus-visible:outline-2
                   focus-visible:outline-offset-2
                   focus-visible:outline-[#14213D]
@@ -306,7 +304,7 @@ export default function Home() {
 
           {/* RIGHT: TASK CARD MOCKUP */}
 
-          <div className="relative h-[300px] sm:h-[340px]">
+          <div className="relative h-75 sm:h-85">
 
             {/* BACK CARD */}
             <div
@@ -315,8 +313,8 @@ export default function Home() {
                 top-4
                 left-6
                 sm:left-10
-                w-[240px]
-                sm:w-[270px]
+                w-60
+                sm:w-67.5
                 rounded-2xl
                 bg-white
                 border
@@ -358,14 +356,14 @@ export default function Home() {
                 top-0
                 right-0
                 sm:right-6
-                w-[260px]
-                sm:w-[300px]
+                w-65
+                sm:w-75
                 rounded-2xl
                 bg-white
                 border
                 border-[#E7E3D8]
                 p-6
-                rotate-[3deg]
+                rotate-3
                 shadow-[0_18px_36px_-10px_rgba(20,33,61,0.22)]
               "
             >
@@ -442,7 +440,7 @@ export default function Home() {
 
         <div
           className="
-            max-w-[1200px]
+            max-w-300
             mx-auto
             px-4
             sm:px-10
@@ -459,7 +457,7 @@ export default function Home() {
         >
 
           <div className="py-4 sm:py-0 sm:px-8 first:pl-0 sm:first:pl-0">
-            <p className="font-[family-name:var(--font-serif)] text-3xl font-semibold text-[#14213D]">
+            <p className="font-serif text-3xl font-semibold text-[#14213D]">
               1,200+
             </p>
             <p className="mt-1 text-sm text-[#5B6472]">
@@ -468,7 +466,7 @@ export default function Home() {
           </div>
 
           <div className="py-4 sm:py-0 sm:px-8">
-            <p className="font-[family-name:var(--font-serif)] text-3xl font-semibold text-[#14213D]">
+            <p className="font-serif text-3xl font-semibold text-[#14213D]">
               3,400
             </p>
             <p className="mt-1 text-sm text-[#5B6472]">
@@ -477,7 +475,7 @@ export default function Home() {
           </div>
 
           <div className="py-4 sm:py-0 sm:px-8">
-            <p className="font-[family-name:var(--font-serif)] text-3xl font-semibold text-[#14213D]">
+            <p className="font-serif text-3xl font-semibold text-[#14213D]">
               4.9
             </p>
             <p className="mt-1 text-sm text-[#5B6472]">
@@ -504,11 +502,11 @@ export default function Home() {
         }}
       >
 
-        <div className="max-w-[1100px] mx-auto">
+        <div className="max-w-275 mx-auto">
 
           <h2
             className="
-              font-[family-name:var(--font-serif)]
+              font-serif
               text-3xl
               sm:text-[2.3rem]
               font-semibold
@@ -531,7 +529,7 @@ export default function Home() {
           >
 
             {/* CARD 1 */}
-            <div className="relative rotate-[-2deg]">
+            <div className="relative -rotate-2">
 
               <div
                 className="
@@ -612,7 +610,7 @@ export default function Home() {
             </div>
 
             {/* CARD 3 */}
-            <div className="relative rotate-[-1deg]">
+            <div className="relative -rotate-1">
 
               <div
                 className="
@@ -645,7 +643,7 @@ export default function Home() {
 
                 <p className="mt-3 text-[15px] leading-relaxed text-[#4B5566]">
                   Every student is ID-verified, every payment is held
-                  in escrow, and every task gets rated when it's done.
+                  in escrow, and every task gets rated when it&apos;s done.
                 </p>
               </div>
 
@@ -664,11 +662,11 @@ export default function Home() {
 
       <section className="bg-[#14213D] py-16 sm:py-20 px-4 sm:px-10">
 
-        <div className="max-w-[720px] mx-auto text-center">
+        <div className="max-w-180 mx-auto text-center">
 
           <h2
             className="
-              font-[family-name:var(--font-serif)]
+              font-serif
               text-3xl
               sm:text-4xl
               font-semibold
@@ -679,7 +677,7 @@ export default function Home() {
           </h2>
 
           <p className="mt-4 text-[17px] leading-relaxed text-white/70">
-            Whether you need something done or you're ready to earn,
+            Whether you need something done or you&apos;re ready to earn,
             UniSeV connects you with your own campus community.
           </p>
 
@@ -708,7 +706,6 @@ export default function Home() {
                 font-semibold
                 no-underline
                 transition-colors
-                focus-visible:outline
                 focus-visible:outline-2
                 focus-visible:outline-offset-2
                 focus-visible:outline-white
@@ -732,7 +729,6 @@ export default function Home() {
                 font-semibold
                 no-underline
                 transition-colors
-                focus-visible:outline
                 focus-visible:outline-2
                 focus-visible:outline-offset-2
                 focus-visible:outline-white
@@ -756,7 +752,7 @@ export default function Home() {
 
         <div
           className="
-            max-w-[1200px]
+            max-w-300
             mx-auto
             flex
             flex-col
@@ -768,9 +764,11 @@ export default function Home() {
             text-[#5B6472]
           "
         >
-          <img
+          <Image
             src="/unisev-logo.png"
             alt="UniSeV"
+            width={160}
+            height={56}
             className="h-8 w-auto object-contain"
           />
 

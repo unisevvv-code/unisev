@@ -117,7 +117,7 @@ export default function PostTask() {
 
         <main className="min-h-screen bg-slate-50 flex justify-center items-center">
 
-            <div className="bg-white p-8 rounded-2xl w-[700px] shadow">
+            <div className="bg-white p-8 rounded-2xl w-175 shadow">
 
                 <h1 className="text-3xl font-bold">
                     Post Task

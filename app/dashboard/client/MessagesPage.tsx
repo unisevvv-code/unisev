@@ -1041,20 +1041,7 @@ export default function MessagesPage() {
                                     "px";
 
                             }}
-                            onKeyDown={(e) => {
-
-                                if (
-                                    e.key === "Enter" &&
-                                    !e.shiftKey
-                                ) {
-
-                                    e.preventDefault();
-
-                                    sendMessage();
-
-                                }
-
-                            }}
+                            
                             className="
                                 flex-1
                                 min-w-0

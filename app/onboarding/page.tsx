@@ -46,17 +46,23 @@ export default function Onboarding() {
 
             router.push("/dashboard");
 
-        } catch (err: any) {
-            alert(err.message);
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : "Something went wrong");
         } finally {
             setLoading(false);
         }
     }
 
-    return (
-        <main className="min-h-screen flex items-center justify-center bg-gray-100">
+    const selectedStyle = {
+        backgroundColor: "#2563eb",
+        borderColor: "#2563eb",
+        color: "#fff",
+    };
 
-            <div className="bg-white p-8 rounded-xl shadow w-[420px] space-y-4">
+    return (
+        <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
+
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow w-full max-w-105 space-y-4">
 
                 <h1 className="text-2xl font-bold text-center">
                     Complete Profile
@@ -64,25 +70,31 @@ export default function Onboarding() {
 
                 {/* NAME */}
                 <input
-                    className="w-full border p-3 rounded"
+                    className="w-full border p-3 rounded text-base"
+                    style={{ caretColor: "#000" }}
                     placeholder="Full Name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    autoFocus
                 />
 
                 {/* ROLE */}
                 <button
+                    type="button"
+                    aria-pressed={role === "client"}
                     onClick={() => setRole("client")}
-                    className={`w-full p-3 border rounded ${role === "client" ? "bg-black text-white" : ""
-                        }`}
+                    className="w-full p-3 border rounded"
+                    style={role === "client" ? selectedStyle : undefined}
                 >
                     Client
                 </button>
 
                 <button
+                    type="button"
+                    aria-pressed={role === "student"}
                     onClick={() => setRole("student")}
-                    className={`w-full p-3 border rounded ${role === "student" ? "bg-black text-white" : ""
-                        }`}
+                    className="w-full p-3 border rounded"
+                    style={role === "student" ? selectedStyle : undefined}
                 >
                     Student
                 </button>

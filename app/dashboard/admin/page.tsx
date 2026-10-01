@@ -51,9 +51,27 @@ interface CombinedStudent extends StudentVerification {
 interface Task {
     id: string;
     title?: string | null;
+    description?: string | null;
     category?: string | null;
     status?: string | null;
     created_at?: string | null;
+    attachments?: string[] | null;
+
+    // Single task fields
+    recommended_price?: number | null;
+    price?: number | null;
+    budget?: number | null;
+    asking_price?: number | null;
+    expected_completion_date?: string | null;
+    expected_day?: string | number | null;
+    expected_month?: string | number | null;
+
+    // Multi task fields
+    task_type?: string | null;
+    max_participants?: number | null;
+    current_participants?: number | null;
+    reward_per_participant?: number | null;
+    duration_minutes?: number | null;
 }
 
 interface EscrowPayment {
@@ -105,9 +123,28 @@ function toDisplayTask(task: Task) {
     return {
         id: task.id,
         title: task.title ?? undefined,
+        description: task.description ?? undefined,
         category: task.category ?? undefined,
         status: task.status ?? undefined,
         created_at: task.created_at ?? undefined,
+        attachments: task.attachments ?? undefined,
+
+        recommended_price: task.recommended_price ?? undefined,
+        price: task.price ?? undefined,
+        budget: task.budget ?? undefined,
+        asking_price: task.asking_price ?? undefined,
+        expected_completion_date:
+            task.expected_completion_date ?? undefined,
+        expected_day: task.expected_day ?? undefined,
+        expected_month: task.expected_month ?? undefined,
+
+        task_type: task.task_type ?? undefined,
+        max_participants: task.max_participants ?? undefined,
+        current_participants:
+            task.current_participants ?? undefined,
+        reward_per_participant:
+            task.reward_per_participant ?? undefined,
+        duration_minutes: task.duration_minutes ?? undefined,
     };
 }
 

@@ -27,6 +27,16 @@ interface WalletTransaction {
     created_at: string;
 }
 
+interface Provider {
+    name: string;
+    code: string;
+}
+
+type Method = "mobile_money" | "bank";
+
+const MIN_WITHDRAWAL = 5;
+const MAX_WITHDRAWAL = 200000;
+
 export default function Wallet() {
     const [wallet, setWallet] = useState<Wallet | null>(null);
     const [transactions, setTransactions] = useState<
@@ -42,6 +52,25 @@ export default function Wallet() {
     // await resolves. Pass `true` explicitly if loadWallet is
     // ever re-called from a manual "refresh" event handler.
     const [loading, setLoading] = useState(true);
+
+    // ---------------------------------------------
+    // WITHDRAW (Paystack) STATE
+    // ---------------------------------------------
+
+    const [showWithdraw, setShowWithdraw] = useState(false);
+    const [amountInput, setAmountInput] = useState("");
+    const [method, setMethod] = useState<Method>("mobile_money");
+    const [providers, setProviders] = useState<Provider[] | null>(null);
+    const [providerCode, setProviderCode] = useState("");
+    const [accountNumber, setAccountNumber] = useState("");
+    const [accountName, setAccountName] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [withdrawError, setWithdrawError] = useState<string | null>(null);
+    const [withdrawNotice, setWithdrawNotice] = useState<string | null>(null);
+
+    const [payoutRate, setPayoutRate] = useState<number | null>(null);
+    const [feeMobile, setFeeMobile] = useState(1);
+    const [feeBank, setFeeBank] = useState(8);
 
     async function loadWallet() {
         const {
@@ -168,6 +197,59 @@ export default function Wallet() {
         loadWallet();
     }, []);
 
+    // Load estimate rate + fees when the Withdraw box opens
+    useEffect(() => {
+        if (!showWithdraw) return;
+
+        let cancelled = false;
+
+        fetch("/api/paystack/rate")
+            .then((res) => res.json())
+            .then((json) => {
+                if (cancelled) return;
+                if (typeof json.payoutRate === "number") setPayoutRate(json.payoutRate);
+                if (typeof json.feeMobile === "number") setFeeMobile(json.feeMobile);
+                if (typeof json.feeBank === "number") setFeeBank(json.feeBank);
+            })
+            .catch(() => {
+                if (!cancelled) setPayoutRate(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showWithdraw]);
+
+    // Load mobile money providers / banks from Paystack
+    useEffect(() => {
+        if (!showWithdraw) return;
+
+        let cancelled = false;
+
+        async function loadProviders() {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+
+            const type = method === "mobile_money" ? "mobile_money" : "ghipss";
+
+            const res = await fetch(`/api/paystack/banks?type=${type}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const json = await res.json().catch(() => ({}));
+
+            if (!cancelled) {
+                setProviders(Array.isArray(json.banks) ? json.banks : []);
+            }
+        }
+
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadProviders();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showWithdraw, method]);
+
     // ---------------------------------------------
     // CALCULATE TOTALS
     // ---------------------------------------------
@@ -189,7 +271,8 @@ export default function Wallet() {
         .filter(
             (transaction) =>
                 transaction.type ===
-                "withdrawal"
+                    "withdrawal" &&
+                transaction.status !== "failed"
         )
         .reduce(
             (total, transaction) =>
@@ -202,6 +285,126 @@ export default function Wallet() {
 
     const availableBalance =
         Number(wallet?.balance || 0);
+
+    // ---------------------------------------------
+    // WITHDRAW HELPERS
+    // ---------------------------------------------
+
+    function openWithdraw() {
+        setAmountInput("");
+        setMethod("mobile_money");
+        setProviders(null);
+        setProviderCode("");
+        setAccountNumber("");
+        setAccountName("");
+        setWithdrawError(null);
+        setWithdrawNotice(null);
+        setShowWithdraw(true);
+    }
+
+    function closeWithdraw() {
+        if (submitting) return;
+        setShowWithdraw(false);
+    }
+
+    function changeMethod(next: Method) {
+        if (next === method) return;
+        setMethod(next);
+        setProviders(null);
+        setProviderCode("");
+        setAccountNumber("");
+        setWithdrawError(null);
+    }
+
+    const amountNumber = Number(amountInput);
+
+    const amountValid =
+        amountInput.trim() !== "" &&
+        /^\d+(\.\d{1,2})?$/.test(amountInput.trim()) &&
+        Number.isFinite(amountNumber) &&
+        amountNumber >= MIN_WITHDRAWAL &&
+        amountNumber <= MAX_WITHDRAWAL;
+
+    const amountWithinBalance =
+        amountValid && amountNumber <= availableBalance;
+
+    const numberValid =
+        method === "mobile_money"
+            ? /^0\d{9}$/.test(accountNumber.replace(/\s+/g, ""))
+            : /^\d{8,16}$/.test(accountNumber.replace(/\s+/g, ""));
+
+    const formValid =
+        amountWithinBalance &&
+        providerCode !== "" &&
+        numberValid &&
+        accountName.trim().length >= 2;
+
+    const fee = method === "mobile_money" ? feeMobile : feeBank;
+
+    const estimatedGross =
+        amountValid && payoutRate
+            ? Math.round(amountNumber * payoutRate * 100) / 100
+            : null;
+
+    const estimatedNet =
+        estimatedGross !== null
+            ? Math.max(0, Math.round((estimatedGross - fee) * 100) / 100)
+            : null;
+
+    async function handleWithdraw() {
+        if (!formValid || submitting) return;
+
+        setSubmitting(true);
+        setWithdrawError(null);
+
+        try {
+            const { data: sessionData } =
+                await supabase.auth.getSession();
+
+            const token = sessionData.session?.access_token;
+
+            if (!token) {
+                setWithdrawError("Please log in again and retry.");
+                setSubmitting(false);
+                return;
+            }
+
+            const res = await fetch("/api/paystack/withdraw", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    usdAmount: amountInput.trim(),
+                    method,
+                    providerCode,
+                    accountNumber: accountNumber.replace(/\s+/g, ""),
+                    accountName: accountName.trim(),
+                }),
+            });
+
+            const json = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                setWithdrawError(
+                    json.error || "Could not process withdrawal. Please try again."
+                );
+                setSubmitting(false);
+                return;
+            }
+
+            setWithdrawNotice(
+                "Withdrawal submitted. It will show as completed once the payout is confirmed."
+            );
+            setSubmitting(false);
+            await loadWallet();
+        } catch (error) {
+            console.log("WITHDRAW ERROR:", error);
+            setWithdrawError("Something went wrong. Please try again.");
+            setSubmitting(false);
+        }
+    }
 
     // ---------------------------------------------
     // LOADING
@@ -298,12 +501,6 @@ export default function Wallet() {
                     />
                 </svg>
 
-                {/*
-                    Stacks to a single column on phones so the
-                    "Active" pill / Withdraw button never squeeze
-                    up against the balance figure — they drop
-                    below it instead, full width for easy tapping.
-                */}
                 <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 sm:gap-4">
 
                     <div className="min-w-0">
@@ -321,15 +518,6 @@ export default function Wallet() {
                         </p>
 
                     </div>
-
-                    {/*
-                        RIGHT-HAND COLUMN
-                        "Active" pill and the Withdraw button are
-                        stacked together, right-aligned, as their
-                        own column next to the balance on larger
-                        screens — full width and left-aligned on
-                        phones.
-                    */}
 
                     <div className="relative flex flex-col items-start sm:items-end gap-3 sm:gap-4">
 
@@ -350,6 +538,7 @@ export default function Wallet() {
                         </div>
 
                         <button
+                            onClick={openWithdraw}
                             disabled={
                                 availableBalance <= 0
                             }
@@ -519,15 +708,7 @@ export default function Wallet() {
             </div>
 
 
-            {/*
-                TRANSACTION HISTORY
-
-                The card itself is a fixed-height flex column so
-                the header never moves and only the list below it
-                (flex-1 + overflow-y-auto) scrolls. Shorter on
-                phones (h-[420px]) since the full h-130 desktop
-                height runs past the fold on a small viewport.
-            */}
+            {/* TRANSACTION HISTORY */}
 
             <div className="
                 bg-white
@@ -585,10 +766,6 @@ export default function Wallet() {
 
                 ) : (
 
-                    // SCROLLABLE LIST - the only part that moves.
-                    // flex-1 makes it fill the remaining height of
-                    // the fixed-height card above; overflow-y-auto
-                    // is what actually enables scrolling.
                     <div className="mt-5 flex-1 overflow-y-auto space-y-3 pr-1">
 
                         {transactions.map(
@@ -600,7 +777,9 @@ export default function Wallet() {
                                     transaction.type ===
                                         "deposit" ||
                                     transaction.type ===
-                                        "release";
+                                        "release" ||
+                                    transaction.type ===
+                                        "refund";
 
                                 const amount =
                                     Number(
@@ -764,6 +943,365 @@ export default function Wallet() {
                 )}
 
             </div>
+
+
+            {/* WITHDRAW MODAL */}
+
+            {showWithdraw && (
+                <div
+                    className="
+                        fixed
+                        inset-0
+                        z-50
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/40
+                        px-4
+                    "
+                    onClick={closeWithdraw}
+                >
+
+                    <div
+                        className="
+                            w-full
+                            max-w-md
+                            max-h-[90vh]
+                            overflow-y-auto
+                            bg-white
+                            rounded-2xl
+                            p-5
+                            sm:p-6
+                            shadow-xl
+                        "
+                        onClick={(e) => e.stopPropagation()}
+                    >
+
+                        <h3 className="text-xl font-bold text-gray-900">
+                            Withdraw Funds
+                        </h3>
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Your wallet is in USD. You&apos;ll be paid in Ghana cedis (GH₵).
+                        </p>
+
+                        {withdrawNotice ? (
+
+                            <div className="mt-5">
+
+                                <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+                                    {withdrawNotice}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowWithdraw(false)}
+                                    className="
+                                        w-full
+                                        mt-5
+                                        px-5
+                                        py-3
+                                        rounded-xl
+                                        bg-green-600
+                                        hover:bg-green-700
+                                        text-white
+                                        font-semibold
+                                        transition
+                                    "
+                                >
+                                    Done
+                                </button>
+
+                            </div>
+
+                        ) : (
+
+                            <>
+
+                                {/* METHOD */}
+
+                                <div className="grid grid-cols-2 gap-2 mt-5">
+
+                                    <button
+                                        type="button"
+                                        onClick={() => changeMethod("mobile_money")}
+                                        className={`
+                                            py-2.5
+                                            rounded-lg
+                                            border
+                                            text-sm
+                                            font-semibold
+                                            transition
+                                            ${
+                                                method === "mobile_money"
+                                                    ? "border-green-600 bg-green-50 text-green-700"
+                                                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                                            }
+                                        `}
+                                    >
+                                        Mobile Money
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => changeMethod("bank")}
+                                        className={`
+                                            py-2.5
+                                            rounded-lg
+                                            border
+                                            text-sm
+                                            font-semibold
+                                            transition
+                                            ${
+                                                method === "bank"
+                                                    ? "border-green-600 bg-green-50 text-green-700"
+                                                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                                            }
+                                        `}
+                                    >
+                                        Bank Account
+                                    </button>
+
+                                </div>
+
+
+                                {/* AMOUNT */}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-5">
+                                    Amount (USD)
+                                </label>
+
+                                <div className="
+                                    mt-1
+                                    flex
+                                    items-center
+                                    border
+                                    rounded-xl
+                                    px-4
+                                    focus-within:border-green-600
+                                ">
+                                    <span className="text-gray-500 mr-2">$</span>
+
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={amountInput}
+                                        onChange={(e) => setAmountInput(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full py-3 outline-none bg-transparent"
+                                    />
+                                </div>
+
+                                {amountInput.trim() !== "" && !amountValid && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        Enter an amount from ${MIN_WITHDRAWAL} to $
+                                        {MAX_WITHDRAWAL.toLocaleString()} (up to 2 decimals).
+                                    </p>
+                                )}
+
+                                {amountValid && !amountWithinBalance && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        That&apos;s more than your available balance
+                                        (${availableBalance.toFixed(2)}).
+                                    </p>
+                                )}
+
+
+                                {/* PROVIDER */}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">
+                                    {method === "mobile_money" ? "Mobile money provider" : "Bank"}
+                                </label>
+
+                                <select
+                                    value={providerCode}
+                                    onChange={(e) => setProviderCode(e.target.value)}
+                                    disabled={providers === null}
+                                    className="
+                                        mt-1
+                                        w-full
+                                        border
+                                        rounded-xl
+                                        px-4
+                                        py-3
+                                        bg-white
+                                        outline-none
+                                        focus:border-green-600
+                                    "
+                                >
+                                    <option value="">
+                                        {providers === null
+                                            ? "Loading..."
+                                            : providers.length === 0
+                                              ? "Could not load options"
+                                              : "Select..."}
+                                    </option>
+
+                                    {(providers || []).map((provider) => (
+                                        <option key={provider.code} value={provider.code}>
+                                            {provider.name}
+                                        </option>
+                                    ))}
+                                </select>
+
+
+                                {/* ACCOUNT NUMBER */}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">
+                                    {method === "mobile_money" ? "Mobile money number" : "Account number"}
+                                </label>
+
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={accountNumber}
+                                    onChange={(e) => setAccountNumber(e.target.value)}
+                                    placeholder={method === "mobile_money" ? "0241234567" : "Account number"}
+                                    className="
+                                        mt-1
+                                        w-full
+                                        border
+                                        rounded-xl
+                                        px-4
+                                        py-3
+                                        outline-none
+                                        focus:border-green-600
+                                    "
+                                />
+
+                                {accountNumber !== "" && !numberValid && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        {method === "mobile_money"
+                                            ? "Enter a 10-digit number starting with 0."
+                                            : "Enter a valid account number (8 to 16 digits)."}
+                                    </p>
+                                )}
+
+
+                                {/* ACCOUNT NAME */}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">
+                                    Account holder name
+                                </label>
+
+                                <input
+                                    type="text"
+                                    value={accountName}
+                                    onChange={(e) => setAccountName(e.target.value)}
+                                    placeholder="Name on the account"
+                                    className="
+                                        mt-1
+                                        w-full
+                                        border
+                                        rounded-xl
+                                        px-4
+                                        py-3
+                                        outline-none
+                                        focus:border-green-600
+                                    "
+                                />
+
+
+                                {/* SUMMARY */}
+
+                                <div className="mt-5 rounded-xl bg-gray-50 border p-4 space-y-2">
+
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Converted amount</span>
+                                        <span className="font-medium text-gray-900">
+                                            {estimatedGross !== null
+                                                ? `GH₵${estimatedGross.toFixed(2)}`
+                                                : "—"}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Transfer fee</span>
+                                        <span className="font-medium text-gray-900">
+                                            GH₵{fee.toFixed(2)}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between text-sm border-t pt-2">
+                                        <span className="text-gray-700 font-semibold">You receive (est.)</span>
+                                        <span className="font-bold text-gray-900">
+                                            {estimatedNet !== null
+                                                ? `GH₵${estimatedNet.toFixed(2)}`
+                                                : "—"}
+                                        </span>
+                                    </div>
+
+                                    <p className="text-xs text-gray-400">
+                                        The final amount is confirmed when you submit. Double-check your number —
+                                        payouts can&apos;t be recalled.
+                                    </p>
+
+                                </div>
+
+                                {withdrawError && (
+                                    <p className="text-sm text-red-600 mt-3">
+                                        {withdrawError}
+                                    </p>
+                                )}
+
+
+                                {/* ACTIONS */}
+
+                                <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
+
+                                    <button
+                                        type="button"
+                                        onClick={closeWithdraw}
+                                        disabled={submitting}
+                                        className="
+                                            w-full
+                                            sm:w-auto
+                                            px-5
+                                            py-3
+                                            rounded-xl
+                                            border
+                                            font-semibold
+                                            text-gray-700
+                                            hover:bg-gray-50
+                                            disabled:opacity-50
+                                            transition
+                                        "
+                                    >
+                                        Cancel
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleWithdraw}
+                                        disabled={!formValid || submitting}
+                                        className="
+                                            w-full
+                                            sm:flex-1
+                                            px-5
+                                            py-3
+                                            rounded-xl
+                                            bg-green-600
+                                            hover:bg-green-700
+                                            disabled:bg-gray-300
+                                            disabled:cursor-not-allowed
+                                            text-white
+                                            font-semibold
+                                            transition
+                                        "
+                                    >
+                                        {submitting ? "Processing..." : "Withdraw"}
+                                    </button>
+
+                                </div>
+
+                            </>
+
+                        )}
+
+                    </div>
+
+                </div>
+            )}
 
         </div>
     );

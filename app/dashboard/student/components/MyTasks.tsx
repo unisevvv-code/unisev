@@ -530,7 +530,7 @@ export default function MyTasks({
                       ">
                         {isMulti
                           ? "Amount"
-                          : "Your Price"}
+                          : "Amount"}
                       </p>
 
                       <p className="

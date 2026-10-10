@@ -46,10 +46,23 @@ interface RevenueItem {
     taskTitle: string | null;
 }
 
+interface Provider {
+    name: string;
+    code: string;
+}
+
+type Method = "mobile_money" | "bank";
+
 const PLATFORM_FEE_RATE = 0.15;
 
 // Transactions shown per page (same as the Payments tab)
 const PAGE_SIZE = 7;
+
+const MIN_WITHDRAWAL = 5;
+const MAX_WITHDRAWAL = 200000;
+
+const INPUT_CLASS =
+    "mt-1 w-full border rounded-xl px-4 py-3 outline-none focus:border-green-600 bg-white";
 
 export default function AdminWallet() {
     const [revenue, setRevenue] =
@@ -61,6 +74,25 @@ export default function AdminWallet() {
     const [loading, setLoading] = useState(true);
 
     const [page, setPage] = useState(1);
+
+    // ==================================================
+    // WITHDRAW (Paystack) STATE
+    // ==================================================
+
+    const [showWithdraw, setShowWithdraw] = useState(false);
+    const [amountInput, setAmountInput] = useState("");
+    const [method, setMethod] = useState<Method>("mobile_money");
+    const [providers, setProviders] = useState<Provider[] | null>(null);
+    const [providerCode, setProviderCode] = useState("");
+    const [accountNumber, setAccountNumber] = useState("");
+    const [accountName, setAccountName] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [withdrawError, setWithdrawError] = useState<string | null>(null);
+    const [withdrawNotice, setWithdrawNotice] = useState<string | null>(null);
+
+    const [payoutRate, setPayoutRate] = useState<number | null>(null);
+    const [feeMobile, setFeeMobile] = useState(1);
+    const [feeBank, setFeeBank] = useState(8);
 
     // ==================================================
     // LOAD REVENUE (platform fees + the task each came from)
@@ -117,7 +149,12 @@ export default function AdminWallet() {
         const source =
             commissionRows.length > 0
                 ? commissionRows
-                : rows.filter((row) => Number(row.amount) > 0);
+                : rows.filter(
+                      (row) =>
+                          Number(row.amount) > 0 &&
+                          row.type !== "withdrawal" &&
+                          row.type !== "refund"
+                  );
 
         let items: RevenueItem[] = [];
 
@@ -266,6 +303,168 @@ export default function AdminWallet() {
         loadBalance();
     }, []);
 
+    // Load estimate rate + fees when the Withdraw box opens
+    useEffect(() => {
+        if (!showWithdraw) return;
+        let cancelled = false;
+
+        fetch("/api/paystack/rate")
+            .then((res) => res.json())
+            .then((json) => {
+                if (cancelled) return;
+                if (typeof json.payoutRate === "number") setPayoutRate(json.payoutRate);
+                if (typeof json.feeMobile === "number") setFeeMobile(json.feeMobile);
+                if (typeof json.feeBank === "number") setFeeBank(json.feeBank);
+            })
+            .catch(() => {
+                if (!cancelled) setPayoutRate(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showWithdraw]);
+
+    // Load mobile money providers / banks from Paystack
+    useEffect(() => {
+        if (!showWithdraw) return;
+        let cancelled = false;
+
+        async function loadProviders() {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+            const type = method === "mobile_money" ? "mobile_money" : "ghipss";
+
+            const res = await fetch(`/api/paystack/banks?type=${type}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const json = await res.json().catch(() => ({}));
+
+            if (!cancelled) setProviders(Array.isArray(json.banks) ? json.banks : []);
+        }
+
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadProviders();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showWithdraw, method]);
+
+    // ==================================================
+    // WITHDRAW HELPERS
+    // ==================================================
+
+    function openWithdraw() {
+        setAmountInput("");
+        setMethod("mobile_money");
+        setProviders(null);
+        setProviderCode("");
+        setAccountNumber("");
+        setAccountName("");
+        setWithdrawError(null);
+        setWithdrawNotice(null);
+        setShowWithdraw(true);
+    }
+
+    function closeWithdraw() {
+        if (submitting) return;
+        setShowWithdraw(false);
+    }
+
+    function changeMethod(next: Method) {
+        if (next === method) return;
+        setMethod(next);
+        setProviders(null);
+        setProviderCode("");
+        setAccountNumber("");
+        setWithdrawError(null);
+    }
+
+    const amountNumber = Number(amountInput);
+    const cleanNumber = accountNumber.replace(/\s+/g, "");
+
+    const amountValid =
+        amountInput.trim() !== "" &&
+        /^\d+(\.\d{1,2})?$/.test(amountInput.trim()) &&
+        Number.isFinite(amountNumber) &&
+        amountNumber >= MIN_WITHDRAWAL &&
+        amountNumber <= MAX_WITHDRAWAL;
+
+    const amountWithinBalance = amountValid && amountNumber <= balance;
+
+    const numberValid =
+        method === "mobile_money"
+            ? /^0\d{9}$/.test(cleanNumber)
+            : /^\d{8,16}$/.test(cleanNumber);
+
+    const formValid =
+        amountWithinBalance &&
+        providerCode !== "" &&
+        numberValid &&
+        accountName.trim().length >= 2;
+
+    const fee = method === "mobile_money" ? feeMobile : feeBank;
+
+    const estimatedGross =
+        amountValid && payoutRate
+            ? Math.round(amountNumber * payoutRate * 100) / 100
+            : null;
+
+    const estimatedNet =
+        estimatedGross !== null
+            ? Math.max(0, Math.round((estimatedGross - fee) * 100) / 100)
+            : null;
+
+    async function handleWithdraw() {
+        if (!formValid || submitting) return;
+
+        setSubmitting(true);
+        setWithdrawError(null);
+
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData.session?.access_token;
+
+            if (!token) {
+                setWithdrawError("Please log in again and retry.");
+                setSubmitting(false);
+                return;
+            }
+
+            const res = await fetch("/api/paystack/admin-withdraw", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    usdAmount: amountInput.trim(),
+                    method,
+                    providerCode,
+                    accountNumber: cleanNumber,
+                    accountName: accountName.trim(),
+                }),
+            });
+
+            const json = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                setWithdrawError(json.error || "Could not process withdrawal. Please try again.");
+                setSubmitting(false);
+                return;
+            }
+
+            setWithdrawNotice("Withdrawal submitted. It will be completed once the payout is confirmed.");
+            setSubmitting(false);
+            await loadBalance();
+        } catch (error) {
+            console.log("ADMIN WITHDRAW ERROR:", error);
+            setWithdrawError("Something went wrong. Please try again.");
+            setSubmitting(false);
+        }
+    }
+
     // ==================================================
     // TOTALS
     // ==================================================
@@ -344,6 +543,20 @@ export default function AdminWallet() {
         });
     }
 
+    const methodButton = (value: Method, label: string) => (
+        <button
+            type="button"
+            onClick={() => changeMethod(value)}
+            className={`py-2.5 rounded-lg border text-sm font-semibold transition ${
+                method === value
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
+            }`}
+        >
+            {label}
+        </button>
+    );
+
     if (loading) {
         return (
             <div className="px-3 sm:px-0">
@@ -361,14 +574,27 @@ export default function AdminWallet() {
 
             {/* HEADER */}
 
-            <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                    UniSeV Admin Wallet
-                </h1>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 
-                <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                    Platform revenue and financial overview
-                </p>
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                        UniSeV Admin Wallet
+                    </h1>
+
+                    <p className="text-gray-500 mt-1 text-sm sm:text-base">
+                        Platform revenue and financial overview
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={openWithdraw}
+                    disabled={balance <= 0}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold transition whitespace-nowrap"
+                >
+                    ⬇ Withdraw Funds
+                </button>
+
             </div>
 
 
@@ -561,6 +787,169 @@ export default function AdminWallet() {
                 )}
 
             </div>
+
+
+            {/* WITHDRAW MODAL */}
+
+            {showWithdraw && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+                    onClick={closeWithdraw}
+                >
+                    <div
+                        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-2xl p-5 sm:p-6 shadow-xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="text-xl font-bold text-gray-900">Withdraw Funds</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Platform balance is in USD (${balance.toFixed(2)} available). You&apos;ll be paid in Ghana cedis (GH₵).
+                        </p>
+
+                        {withdrawNotice ? (
+                            <div className="mt-5">
+                                <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+                                    {withdrawNotice}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowWithdraw(false)}
+                                    className="w-full mt-5 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 gap-2 mt-5">
+                                    {methodButton("mobile_money", "Mobile Money")}
+                                    {methodButton("bank", "Bank Account")}
+                                </div>
+
+                                <label className="block text-sm font-medium text-gray-700 mt-5">Amount (USD)</label>
+                                <div className="mt-1 flex items-center border rounded-xl px-4 focus-within:border-green-600">
+                                    <span className="text-gray-500 mr-2">$</span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={amountInput}
+                                        onChange={(e) => setAmountInput(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full py-3 outline-none bg-transparent"
+                                    />
+                                </div>
+
+                                {amountInput.trim() !== "" && !amountValid && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        Enter an amount from ${MIN_WITHDRAWAL} to ${MAX_WITHDRAWAL.toLocaleString()} (up to 2 decimals).
+                                    </p>
+                                )}
+
+                                {amountValid && !amountWithinBalance && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        That&apos;s more than the platform balance (${balance.toFixed(2)}).
+                                    </p>
+                                )}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">
+                                    {method === "mobile_money" ? "Mobile money provider" : "Bank"}
+                                </label>
+                                <select
+                                    value={providerCode}
+                                    onChange={(e) => setProviderCode(e.target.value)}
+                                    disabled={providers === null}
+                                    className={INPUT_CLASS}
+                                >
+                                    <option value="">
+                                        {providers === null
+                                            ? "Loading..."
+                                            : providers.length === 0
+                                              ? "Could not load options"
+                                              : "Select..."}
+                                    </option>
+                                    {(providers || []).map((provider) => (
+                                        <option key={provider.code} value={provider.code}>
+                                            {provider.name}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">
+                                    {method === "mobile_money" ? "Mobile money number" : "Account number"}
+                                </label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={accountNumber}
+                                    onChange={(e) => setAccountNumber(e.target.value)}
+                                    placeholder={method === "mobile_money" ? "0241234567" : "Account number"}
+                                    className={INPUT_CLASS}
+                                />
+
+                                {accountNumber !== "" && !numberValid && (
+                                    <p className="text-sm text-red-600 mt-2">
+                                        {method === "mobile_money"
+                                            ? "Enter a 10-digit number starting with 0."
+                                            : "Enter a valid account number (8 to 16 digits)."}
+                                    </p>
+                                )}
+
+                                <label className="block text-sm font-medium text-gray-700 mt-4">Account holder name</label>
+                                <input
+                                    type="text"
+                                    value={accountName}
+                                    onChange={(e) => setAccountName(e.target.value)}
+                                    placeholder="Name on the account"
+                                    className={INPUT_CLASS}
+                                />
+
+                                <div className="mt-5 rounded-xl bg-gray-50 border p-4 space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Converted amount</span>
+                                        <span className="font-medium text-gray-900">
+                                            {estimatedGross !== null ? `GH₵${estimatedGross.toFixed(2)}` : "—"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500">Transfer fee</span>
+                                        <span className="font-medium text-gray-900">GH₵{fee.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm border-t pt-2">
+                                        <span className="text-gray-700 font-semibold">You receive (est.)</span>
+                                        <span className="font-bold text-gray-900">
+                                            {estimatedNet !== null ? `GH₵${estimatedNet.toFixed(2)}` : "—"}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-400">
+                                        The final amount is confirmed when you submit. Double-check the number —
+                                        payouts can&apos;t be recalled.
+                                    </p>
+                                </div>
+
+                                {withdrawError && <p className="text-sm text-red-600 mt-3">{withdrawError}</p>}
+
+                                <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={closeWithdraw}
+                                        disabled={submitting}
+                                        className="w-full sm:w-auto px-5 py-3 rounded-xl border font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleWithdraw}
+                                        disabled={!formValid || submitting}
+                                        className="w-full sm:flex-1 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold transition"
+                                    >
+                                        {submitting ? "Processing..." : "Withdraw"}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
 
         </div>
     );

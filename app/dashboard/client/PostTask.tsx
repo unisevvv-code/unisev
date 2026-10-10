@@ -374,14 +374,19 @@ export default function PostTask({
                     </div>
                 </div>
 
-                {/* TASK TYPE TOGGLE */}
+                              {/* TASK TYPE TOGGLE */}
                 <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 p-1 shrink-0">
                     <button
                         type="button"
                         onClick={() => setTaskType("single")}
+                        style={
+                            taskType === "single"
+                                ? { backgroundColor: "#2563eb", color: "#ffffff" }
+                                : undefined
+                        }
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition sm:px-4 ${
                             taskType === "single"
-                                ? "bg-white text-gray-900 shadow-sm"
+                                ? "shadow-sm"
                                 : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
@@ -392,9 +397,14 @@ export default function PostTask({
                     <button
                         type="button"
                         onClick={() => setTaskType("multi")}
+                        style={
+                            taskType === "multi"
+                                ? { backgroundColor: "#2563eb", color: "#ffffff" }
+                                : undefined
+                        }
                         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition sm:px-4 ${
                             taskType === "multi"
-                                ? "bg-white text-gray-900 shadow-sm"
+                                ? "shadow-sm"
                                 : "text-gray-500 hover:text-gray-700"
                         }`}
                     >

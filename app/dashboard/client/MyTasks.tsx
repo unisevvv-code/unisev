@@ -172,7 +172,7 @@ export default function MyTasks({
     // LOAD ACCEPTED PRICES (single-task asking price only)
     // =========================================================
 
-    const loadAcceptedPrices = useCallback(async () => {
+       const loadAcceptedPrices = useCallback(async () => {
 
         if (tasks.length === 0) return;
 
@@ -186,7 +186,10 @@ export default function MyTasks({
                     "task_id, asking_price"
                 )
                 .in("task_id", taskIds)
-                .eq("status", "accepted");
+                .in(
+                    "status",
+                    ["accepted", "completed"]
+                );
 
         if (error) {
             console.log(
@@ -201,12 +204,25 @@ export default function MyTasks({
 
         (data || []).forEach(
             (application) => {
-                priceMap[
-                    application.task_id
-                ] =
-                    Number(
-                        application.asking_price
-                    );
+
+                if (
+                    application.asking_price ===
+                        null ||
+                    application.asking_price ===
+                        undefined
+                ) {
+                    return;
+                }
+
+                const price = Number(
+                    application.asking_price
+                );
+
+                if (Number.isFinite(price)) {
+                    priceMap[
+                        application.task_id
+                    ] = price;
+                }
             }
         );
 
@@ -1133,12 +1149,13 @@ export default function MyTasks({
                                                     sm:text-[19px]
                                                 ">
                                                     $
-                                                    {isMulti
+                                                                                                       {isMulti
                                                         ? task.reward_per_participant ?? 0
                                                         : acceptedPrices[
                                                               task.id
                                                           ] ??
-                                                          task.recommended_price}
+                                                          task.recommended_price ??
+                                                          0}
                                                 </p>
 
                                             </div>

@@ -234,7 +234,7 @@ export default function AuthPage() {
             href={getInboxUrl(email)}
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full bg-black text-white py-3 rounded"
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded"
           >
             Open my email
           </a>

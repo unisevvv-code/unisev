@@ -16,6 +16,9 @@ import {
     Clock,
     BarChart3,
     Trophy,
+    ClipboardList,
+    XCircle,
+    HelpCircle,
 } from "lucide-react";
 
 import Header from "./components/Header";
@@ -26,6 +29,8 @@ import Profile from "./components/Profile";
 import MessagesPage from "./components/MessagesPage";
 import Wallet from "./components/Wallet";
 import StudentProfilePreview from "./components/StudentProfilePreview";
+import HowItWorks from "@/components/HowItWorks";
+import { getGreeting } from "@/lib/greeting";
 
 // ==========================================
 // TYPES
@@ -70,10 +75,23 @@ interface ActivityItem {
     id: string;
     title: string;
     subtitle: string;
-    amount: number;
+    // null for task events (applied / accepted / ...), which have no
+    // amount of their own and show a label instead.
+    amount: number | null;
     positive: boolean;
     status: string;
     created_at: string;
+
+    // Only set on task events
+    taskTone?: "blue" | "green" | "orange" | "red" | "purple";
+    taskLabel?: string;
+}
+
+interface ApplicationActivityRow {
+    id: string;
+    status: string;
+    created_at: string;
+    tasks: { title: string } | { title: string }[] | null;
 }
 
 interface WalletTransactionRow {
@@ -181,6 +199,9 @@ export default function StudentDashboard() {
 
     const [name, setName] = useState("Student");
 
+    // true only the very first time a new account opens the dashboard
+    const [isFirstVisit, setIsFirstVisit] = useState(false);
+
     const [currentUserId, setCurrentUserId] =
         useState("");
 
@@ -262,6 +283,11 @@ export default function StudentDashboard() {
         if (activePage === "browse") {
             getTasks();
         }
+
+        // Refresh the feed whenever the overview is shown again
+        if (activePage === "dashboard") {
+            getRecentActivity();
+        }
     }, [activePage]);
 
     // ==========================================
@@ -294,6 +320,17 @@ export default function StudentDashboard() {
                 data.full_name ||
                 "Student"
             );
+
+            // First time on a new account: show the welcome once, then
+            // remember it so later visits get the normal greetings.
+            if (data.welcomed === false) {
+                setIsFirstVisit(true);
+
+                await supabase
+                    .from("profiles")
+                    .update({ welcomed: true })
+                    .eq("id", userData.user.id);
+            }
 
             setProfile({
                 phone: data.phone || "",
@@ -856,7 +893,8 @@ export default function StudentDashboard() {
                     (transaction) => ({
                         id: `txn-${transaction.id}`,
                         title:
-                            transaction.type === "release"
+                            transaction.type === "release" ||
+                            transaction.type === "earning"
                                 ? "Payment released"
                                 : transaction.type === "withdrawal"
                                 ? "Withdrawal"
@@ -867,6 +905,7 @@ export default function StudentDashboard() {
                         amount: Number(transaction.amount),
                         positive:
                             transaction.type === "release" ||
+                            transaction.type === "earning" ||
                             transaction.type === "deposit",
                         status: transaction.status,
                         created_at: transaction.created_at,
@@ -905,13 +944,90 @@ export default function StudentDashboard() {
             }));
         }
 
-        const merged = [...transactionItems, ...escrowItems]
+        // ------------------------------------------
+        // Task events: applied, accepted, declined,
+        // completed (from this student's applications)
+        // ------------------------------------------
+
+        const {
+            data: applicationData,
+            error: applicationError,
+        } = await supabase
+            .from("applications")
+            .select("id, status, created_at, tasks(title)")
+            .eq("student_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+        let taskItems: ActivityItem[] = [];
+
+        if (applicationError) {
+            console.log(
+                "RECENT ACTIVITY (applications) ERROR:",
+                applicationError
+            );
+        } else {
+            taskItems = (
+                (applicationData as unknown as ApplicationActivityRow[]) || []
+            ).map((application): ActivityItem => {
+                const task = Array.isArray(application.tasks)
+                    ? application.tasks[0]
+                    : application.tasks;
+
+                const status = (application.status || "pending").toLowerCase();
+
+                const base = {
+                    id: `app-${application.id}`,
+                    subtitle: task?.title || "",
+                    amount: null,
+                    positive: true,
+                    status,
+                    created_at: application.created_at,
+                };
+
+                if (status === "accepted") {
+                    return {
+                        ...base,
+                        title: "Application accepted",
+                        taskTone: "green",
+                        taskLabel: "Accepted",
+                    };
+                }
+
+                if (status === "completed") {
+                    return {
+                        ...base,
+                        title: "Task completed",
+                        taskTone: "purple",
+                        taskLabel: "Completed",
+                    };
+                }
+
+                if (status === "rejected" || status === "declined") {
+                    return {
+                        ...base,
+                        title: "Application declined",
+                        taskTone: "red",
+                        taskLabel: "Declined",
+                    };
+                }
+
+                return {
+                    ...base,
+                    title: "Applied for task",
+                    taskTone: "blue",
+                    taskLabel: "Applied",
+                };
+            });
+        }
+
+        const merged = [...transactionItems, ...escrowItems, ...taskItems]
             .sort(
                 (a, b) =>
                     new Date(b.created_at).getTime() -
                     new Date(a.created_at).getTime()
             )
-            .slice(0, 5);
+            .slice(0, 6);
 
         setRecentActivity(merged);
     }
@@ -961,6 +1077,8 @@ export default function StudentDashboard() {
         await getMyTasks();
 
         await getStudentStats();
+
+        await getRecentActivity();
     }
 
     // ==========================================
@@ -1043,6 +1161,13 @@ export default function StudentDashboard() {
                 return <Wallet />;
 
             // --------------------------------------
+            // HOW IT WORKS
+            // --------------------------------------
+
+            case "howitworks":
+                return <HowItWorks />;
+
+            // --------------------------------------
             // PROFILE
             // --------------------------------------
 
@@ -1084,12 +1209,11 @@ export default function StudentDashboard() {
                             <div>
 
                                 <h1 className="text-2xl sm:text-3xl font-bold">
-                                    Welcome back,{" "}
-                                    {name} 👋
+                                    {getGreeting(name, isFirstVisit, "student").title}
                                 </h1>
 
                                 <p className="mt-2 text-gray-500 text-sm sm:text-base">
-                                    Here&apos;s your UniSev activity at a glance.
+                                    {getGreeting(name, isFirstVisit, "student").subtitle}
                                 </p>
 
                             </div>
@@ -1266,12 +1390,26 @@ export default function StudentDashboard() {
                                                         items-center
                                                         justify-center
                                                         ${
-                                                            item.status === "pending"
-                                                                ? "bg-orange-50 text-orange-500"
-                                                                : "bg-green-50 text-green-600"
+                                                            item.taskTone
+                                                                ? {
+                                                                      blue: "bg-blue-50 text-blue-600",
+                                                                      green: "bg-green-50 text-green-600",
+                                                                      orange: "bg-orange-50 text-orange-500",
+                                                                      red: "bg-red-50 text-red-500",
+                                                                      purple: "bg-purple-50 text-purple-600",
+                                                                  }[item.taskTone]
+                                                                : item.status === "pending"
+                                                                  ? "bg-orange-50 text-orange-500"
+                                                                  : "bg-green-50 text-green-600"
                                                         }
                                                     `}>
-                                                        {item.status === "pending" ? (
+                                                        {item.taskTone === "red" ? (
+                                                            <XCircle className="w-4 h-4" />
+                                                        ) : item.taskTone === "blue" ? (
+                                                            <ClipboardList className="w-4 h-4" />
+                                                        ) : item.taskTone ? (
+                                                            <CheckCircle2 className="w-4 h-4" />
+                                                        ) : item.status === "pending" ? (
                                                             <Clock className="w-4 h-4" />
                                                         ) : (
                                                             <CheckCircle2 className="w-4 h-4" />
@@ -1309,11 +1447,25 @@ export default function StudentDashboard() {
 
                                                 <div className="text-left sm:text-right shrink-0 pl-12 sm:pl-0">
 
-                                                    <p className={`font-bold ${item.positive ? "text-green-600" : "text-gray-700"}`}>
-                                                        {item.positive ? "+" : "-"}${Number(item.amount).toFixed(2)}
-                                                    </p>
+                                                    {item.amount === null ? (
+                                                        <span className={`inline-block text-xs font-semibold rounded-full px-3 py-1 ${
+                                                            {
+                                                                blue: "bg-blue-50 text-blue-600",
+                                                                green: "bg-green-50 text-green-600",
+                                                                orange: "bg-orange-50 text-orange-600",
+                                                                red: "bg-red-50 text-red-600",
+                                                                purple: "bg-purple-50 text-purple-600",
+                                                            }[item.taskTone || "blue"]
+                                                        }`}>
+                                                            {item.taskLabel}
+                                                        </span>
+                                                    ) : (
+                                                        <p className={`font-bold ${item.positive ? "text-green-600" : "text-gray-700"}`}>
+                                                            {item.positive ? "+" : "-"}${Number(item.amount).toFixed(2)}
+                                                        </p>
+                                                    )}
 
-                                                    {item.status === "pending" && (
+                                                    {item.amount !== null && item.status === "pending" && (
                                                         <span className="inline-block mt-1 text-xs font-semibold text-orange-600 bg-orange-50 rounded-full px-2 py-0.5">
                                                             Pending
                                                         </span>
@@ -1394,6 +1546,20 @@ export default function StudentDashboard() {
                                         <div className="flex-1 min-w-0">
                                             <p className="font-semibold text-gray-900">Messages</p>
                                             <p className="text-sm text-gray-500">Chat with clients and manage conversations</p>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActivePage("howitworks")}
+                                        className="w-full flex items-center gap-3 text-left border rounded-xl p-3 hover:bg-gray-50 transition"
+                                    >
+                                        <div className="w-10 h-10 shrink-0 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <HelpCircle className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-gray-900">How UniSeV Works</p>
+                                            <p className="text-sm text-gray-500">Learn how tasks, payments and messaging work</p>
                                         </div>
                                         <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                                     </button>

@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
 } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { dayKey, formatDayLabel, formatTime } from "@/lib/chatTime";
 import ClientProfilePreview from "../../client/ProfilePreview";
 
 // ==========================================
@@ -748,7 +750,7 @@ export default function MessagesPage() {
         >
 
           {messages.map(
-            (msg) => {
+            (msg, index) => {
               const mine =
                 msg.sender_id ===
                 currentUserId;
@@ -761,97 +763,119 @@ export default function MessagesPage() {
                   ? fileUrls[msg.file_path]
                   : null;
 
+              const prev = messages[index - 1];
+
+              const showDate =
+                !prev ||
+                dayKey(prev.created_at) !==
+                  dayKey(msg.created_at);
+
               return (
-                <div
-                  key={msg.id}
-                  className={`
-                    flex
-                    mb-2
-                    ${
-                      mine
-                        ? "justify-end"
-                        : "justify-start"
-                    }
-                  `}
-                >
+                <Fragment key={msg.id}>
+
+                  {showDate && (
+                    <div className="flex justify-center my-3">
+                      <span className="text-xs text-gray-600 bg-white rounded-full px-3 py-1 shadow-sm">
+                        {formatDayLabel(msg.created_at)}
+                      </span>
+                    </div>
+                  )}
 
                   <div
                     className={`
-                      max-w-[85%]
-                      sm:max-w-[70%]
-                      p-3
-                      rounded-2xl
+                      flex
+                      mb-2
                       ${
                         mine
-                          ? "bg-green-100"
-                          : "bg-white"
+                          ? "justify-end"
+                          : "justify-start"
                       }
                     `}
                   >
 
-                    {msg.file_path && (
-                      isImage ? (
-                        fileUrl ? (
+                    <div
+                      className={`
+                        max-w-[85%]
+                        sm:max-w-[70%]
+                        p-3
+                        rounded-2xl
+                        ${
+                          mine
+                            ? "bg-green-100"
+                            : "bg-white"
+                        }
+                      `}
+                    >
+
+                      {msg.file_path && (
+                        isImage ? (
+                          fileUrl ? (
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={msg.file_name || undefined}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={fileUrl}
+                                alt={msg.file_name || "attachment"}
+                                className="max-w-full sm:max-w-55 rounded-xl mb-1"
+                              />
+                            </a>
+                          ) : (
+                            <p className="text-sm text-gray-400 mb-1">
+                              Loading image...
+                            </p>
+                          )
+                        ) : (
                           <a
-                            href={fileUrl}
+                            href={fileUrl || undefined}
                             target="_blank"
                             rel="noopener noreferrer"
                             download={msg.file_name || undefined}
+                            className="
+                              flex
+                              items-center
+                              gap-2
+                              bg-gray-50
+                              border
+                              rounded-xl
+                              px-3
+                              py-2
+                              mb-1
+                              hover:bg-gray-100
+                            "
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={fileUrl}
-                              alt={msg.file_name || "attachment"}
-                              className="max-w-full sm:max-w-55 rounded-xl mb-1"
-                            />
+                            <span>📎</span>
+                            <span className="text-sm underline truncate">
+                              {msg.file_name || "Download file"}
+                            </span>
                           </a>
-                        ) : (
-                          <p className="text-sm text-gray-400 mb-1">
-                            Loading image...
-                          </p>
                         )
-                      ) : (
-                        <a
-                          href={fileUrl || undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={msg.file_name || undefined}
-                          className="
-                            flex
-                            items-center
-                            gap-2
-                            bg-gray-50
-                            border
-                            rounded-xl
-                            px-3
-                            py-2
-                            mb-1
-                            hover:bg-gray-100
-                          "
-                        >
-                          <span>📎</span>
-                          <span className="text-sm underline truncate">
-                            {msg.file_name || "Download file"}
-                          </span>
-                        </a>
-                      )
-                    )}
+                      )}
 
-                    {msg.message && (
-                      <div
-                        className={
-                          isEmojiOnly(msg.message)
-                            ? "text-4xl leading-normal"
-                            : "wrap-break-word"
-                        }
-                      >
-                        {msg.message}
-                      </div>
-                    )}
+                      {msg.message && (
+                        <div
+                          className={
+                            isEmojiOnly(msg.message)
+                              ? "text-4xl leading-normal"
+                              : "wrap-break-word"
+                          }
+                        >
+                          {msg.message}
+                        </div>
+                      )}
+
+                      <p className="mt-1 text-[11px] text-gray-500 text-right">
+                        {formatTime(msg.created_at)}
+                      </p>
+
+                    </div>
 
                   </div>
 
-                </div>
+                </Fragment>
               );
             }
           )}

@@ -263,83 +263,131 @@ export default function Profile({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
             {/* PHONE */}
-            <input
-              placeholder="Phone Number"
-              value={profile.phone}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  phone: e.target.value,
-                })
-              }
-              className="border p-3 rounded-xl w-full"
-            />
+            <div>
+
+              <label className="font-semibold block mb-2">
+                Phone Number
+              </label>
+
+              <input
+                  placeholder="Phone Number"
+                  value={profile.phone}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      phone: e.target.value,
+                    })
+                  }
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* UNIVERSITY */}
-            <input
-              placeholder="University"
-              value={profile.university}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  university: e.target.value,
-                })
-              }
-              className="border p-3 rounded-xl w-full"
-            />
+            <div>
+
+              <label className="font-semibold block mb-2">
+                School
+              </label>
+
+              <input
+                  placeholder="e.g. KNUST"
+                  value={profile.university}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      university: e.target.value,
+                    })
+                  }
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* DEPARTMENT */}
-            <input
-              placeholder="Department"
-              value={profile.department}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  department: e.target.value,
-                })
-              }
-              className="border p-3 rounded-xl w-full"
-            />
+            <div>
+
+              <label className="font-semibold block mb-2">
+                Program
+              </label>
+
+              <input
+                  placeholder="e.g. Physics"
+                  value={profile.department}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      department: e.target.value,
+                    })
+                  }
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* LEVEL */}
-            <input
-              placeholder="Level"
-              value={profile.level}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  level: e.target.value,
-                })
-              }
-              className="border p-3 rounded-xl w-full"
-            />
+            <div>
+
+              <label className="font-semibold block mb-2">
+                Level
+              </label>
+
+              <input
+                  placeholder="e.g. 300"
+                  value={profile.level}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      level: e.target.value,
+                    })
+                  }
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* STUDENT ID */}
-            <input
-              placeholder="Student ID"
-              value={profile.student_id}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  student_id: e.target.value,
-                })
-              }
-              className="border p-3 rounded-xl w-full sm:col-span-2"
-            />
+            <div className="sm:col-span-2">
+
+              <label className="font-semibold block mb-2">
+                Student ID
+              </label>
+
+              <input
+                  placeholder="Student ID"
+                  value={profile.student_id}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      student_id: e.target.value,
+                    })
+                  }
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* BIO */}
-            <textarea
-              placeholder="Bio"
-              value={profile.bio}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  bio: e.target.value,
-                })
-              }
-              rows={5}
-              className="border p-3 rounded-xl w-full sm:col-span-2"
-            />
+            <div className="sm:col-span-2">
+
+              <label className="font-semibold block mb-2">
+                Bio
+              </label>
+
+              <textarea
+                  placeholder="Bio"
+                  value={profile.bio}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      bio: e.target.value,
+                    })
+                  }
+                  rows={5}
+                  className="border p-3 rounded-xl w-full"
+                />
+
+            </div>
 
             {/* SKILLS */}
             <div className="sm:col-span-2">

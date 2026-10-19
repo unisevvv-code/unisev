@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { Clock, Download, TrendingUp, Wallet as WalletIcon, ArrowUpDown } from "lucide-react";
 
 // ==================================================
 // TYPES
@@ -46,6 +47,16 @@ interface RevenueItem {
     taskTitle: string | null;
 }
 
+// A payout the admin made (row of admin_withdrawals)
+interface WithdrawalRow {
+    id: string;
+    usd_amount: number;
+    status: string;
+    method: string | null;
+    account_last4: string | null;
+    created_at: string;
+}
+
 interface Provider {
     name: string;
     code: string;
@@ -74,6 +85,8 @@ export default function AdminWallet() {
     const [loading, setLoading] = useState(true);
 
     const [page, setPage] = useState(1);
+
+    const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
 
     // ==================================================
     // WITHDRAW (Paystack) STATE
@@ -293,6 +306,22 @@ export default function AdminWallet() {
         setBalance(Number(data?.balance || 0));
     }
 
+    // The platform's own payouts: shown in the history and used for
+    // the Withdrawn total.
+    async function loadWithdrawals() {
+        const { data, error } = await supabase
+            .from("admin_withdrawals")
+            .select("id, usd_amount, status, method, account_last4, created_at")
+            .order("created_at", { ascending: false });
+
+        if (error) {
+            console.log("ADMIN WITHDRAWALS ERROR:", error);
+            return;
+        }
+
+        setWithdrawals((data as WithdrawalRow[] | null) || []);
+    }
+
     useEffect(() => {
         // Fetching data on mount and storing it in state is one of
         // the two valid uses of an effect (see
@@ -301,6 +330,8 @@ export default function AdminWallet() {
         loadWallet();
         // eslint-disable-next-line react-hooks/set-state-in-effect
         loadBalance();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadWithdrawals();
     }, []);
 
     // Load estimate rate + fees when the Withdraw box opens
@@ -458,6 +489,7 @@ export default function AdminWallet() {
             setWithdrawNotice("Withdrawal submitted. It will be completed once the payout is confirmed.");
             setSubmitting(false);
             await loadBalance();
+            await loadWithdrawals();
         } catch (error) {
             console.log("ADMIN WITHDRAW ERROR:", error);
             setWithdrawError("Something went wrong. Please try again.");
@@ -498,13 +530,42 @@ export default function AdminWallet() {
     const thisMonthRevenue = sumForMonth(currentMonth, currentYear);
     const lastMonthRevenue = sumForMonth(previousMonth, previousMonthYear);
 
+    // Failed / reversed payouts are refunded, so they don't count.
+    const totalWithdrawn = withdrawals
+        .filter((w) => w.status !== "failed" && w.status !== "reversed")
+        .reduce((total, w) => total + Number(w.usd_amount || 0), 0);
+
+    // One list: platform fees (money in) + payouts (money out), newest first.
+    type HistoryEntry =
+        | { kind: "revenue"; id: string; created_at: string; item: RevenueItem }
+        | { kind: "withdrawal"; id: string; created_at: string; item: WithdrawalRow };
+
+    const history: HistoryEntry[] = [
+        ...revenue.map((item): HistoryEntry => ({
+            kind: "revenue",
+            id: `rev-${item.id}`,
+            created_at: item.created_at,
+            item,
+        })),
+        ...withdrawals.map((item): HistoryEntry => ({
+            kind: "withdrawal",
+            id: `wd-${item.id}`,
+            created_at: item.created_at,
+            item,
+        })),
+    ].sort(
+        (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+    );
+
     // ==================================================
     // PAGINATION
     // ==================================================
 
     const totalPages = Math.max(
         1,
-        Math.ceil(revenue.length / PAGE_SIZE)
+        Math.ceil(history.length / PAGE_SIZE)
     );
 
     const currentPage = Math.min(page, totalPages);
@@ -513,10 +574,10 @@ export default function AdminWallet() {
 
     const endIndex = Math.min(
         startIndex + PAGE_SIZE,
-        revenue.length
+        history.length
     );
 
-    const pageItems = revenue.slice(startIndex, endIndex);
+    const pageItems = history.slice(startIndex, endIndex);
 
     // Up to 3 page buttons, centred on the current page
     const firstButton = Math.max(
@@ -574,66 +635,130 @@ export default function AdminWallet() {
 
             {/* HEADER */}
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    UniSeV Admin Wallet
+                </h1>
 
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                        UniSeV Admin Wallet
-                    </h1>
+                <p className="text-gray-500 mt-1 text-sm sm:text-base">
+                    Platform revenue and financial overview
+                </p>
+            </div>
 
-                    <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                        Platform revenue and financial overview
-                    </p>
-                </div>
 
-                <button
-                    type="button"
-                    onClick={openWithdraw}
-                    disabled={balance <= 0}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold transition whitespace-nowrap"
+            {/* MAIN BALANCE */}
+
+            <div className="mt-6 sm:mt-8 relative overflow-hidden bg-linear-to-br from-white to-green-50 border rounded-2xl p-5 sm:p-8">
+
+                {/* decorative background wave */}
+                <svg
+                    className="absolute bottom-0 right-0 w-1/2 sm:w-2/3 h-28 sm:h-40 text-green-100/70 pointer-events-none"
+                    viewBox="0 0 400 150"
+                    preserveAspectRatio="none"
+                    fill="none"
                 >
-                    ⬇ Withdraw Funds
-                </button>
+                    <path
+                        d="M0,120 C80,60 160,140 240,90 C300,55 340,90 400,40 L400,150 L0,150 Z"
+                        fill="currentColor"
+                    />
+                </svg>
+
+                <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 sm:gap-4">
+
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">
+                            Platform Balance
+                        </p>
+
+                        <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mt-2 wrap-break-words">
+                            ${balance.toFixed(2)}
+                        </h2>
+
+                        <p className="text-sm text-gray-500 mt-3">
+                            USD
+                        </p>
+                    </div>
+
+                    <div className="relative flex flex-col items-start sm:items-end gap-3 sm:gap-4">
+
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 text-green-700 text-sm font-semibold">
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                            Active
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={openWithdraw}
+                            disabled={balance <= 0}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold transition whitespace-nowrap"
+                        >
+                            <Download className="w-4 h-4" />
+                            Withdraw Funds
+                        </button>
+
+                    </div>
+
+                </div>
 
             </div>
 
 
-            {/* FINANCIAL CARDS */}
+            {/* SUMMARY */}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 mt-6 sm:mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 mt-5 sm:mt-6">
 
-                <div className="bg-white rounded-2xl border p-5 sm:p-6">
-                    <p className="text-sm text-gray-500">Total Revenue</p>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-blue-600 mt-3">
-                        ${totalRevenue.toFixed(2)}
-                    </h2>
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                        <WalletIcon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">Total Revenue</p>
+                        <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1 truncate">
+                            ${totalRevenue.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border p-5 sm:p-6">
-                    <p className="text-sm text-gray-500">Last Month</p>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-purple-600 mt-3">
-                        ${lastMonthRevenue.toFixed(2)}
-                    </h2>
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <Clock className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">Last Month</p>
+                        <p className="text-xl sm:text-2xl font-bold text-purple-600 mt-1 truncate">
+                            ${lastMonthRevenue.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border p-5 sm:p-6">
-                    <p className="text-sm text-gray-500">This Month</p>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-green-600 mt-3">
-                        ${thisMonthRevenue.toFixed(2)}
-                    </h2>
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">This Month</p>
+                        <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1 truncate">
+                            ${thisMonthRevenue.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border p-5 sm:p-6">
-                    <p className="text-sm text-gray-500">Balance</p>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-orange-600 mt-3">
-                        ${balance.toFixed(2)}
-                    </h2>
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <ArrowUpDown className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">Withdrawn</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-700 mt-1 truncate">
+                            ${totalWithdrawn.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
             </div>
 
 
-            {/* REVENUE NOTIFICATIONS */}
+            {/* TRANSACTION HISTORY */}
 
             <div className="bg-white rounded-2xl border p-5 sm:p-6 mt-6">
 
@@ -641,27 +766,27 @@ export default function AdminWallet() {
 
                     <div>
                         <h2 className="text-lg sm:text-xl font-bold">
-                            Platform Revenue
+                            Transaction History
                         </h2>
 
                         <p className="text-sm text-gray-500 mt-1">
-                            UniSeV&apos;s 15% platform fees
+                            Platform fees received and money withdrawn
                         </p>
                     </div>
 
                     <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                        {revenue.length}{" "}
-                        {revenue.length === 1 ? "transaction" : "transactions"}
+                        {history.length}{" "}
+                        {history.length === 1 ? "transaction" : "transactions"}
                     </span>
 
                 </div>
 
 
-                {revenue.length === 0 ? (
+                {history.length === 0 ? (
 
                     <div className="py-10 text-center">
                         <p className="text-gray-500">
-                            No platform revenue yet.
+                            No transactions yet.
                         </p>
                     </div>
 
@@ -669,57 +794,111 @@ export default function AdminWallet() {
 
                     <div className="mt-5 space-y-3">
 
-                        {pageItems.map((item) => (
+                        {pageItems.map((entry) => {
 
-                            <div
-                                key={item.id}
-                                className="flex items-start gap-3 rounded-xl border border-green-100 bg-green-50/50 p-4"
-                            >
+                            if (entry.kind === "withdrawal") {
+                                const w = entry.item;
+                                const refunded =
+                                    w.status === "failed" || w.status === "reversed";
 
-                                {/* ICON */}
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-lg">
-                                    💰
+                                const statusLabel =
+                                    w.status === "completed"
+                                        ? "Completed"
+                                        : refunded
+                                          ? "Failed - refunded"
+                                          : "Processing";
+
+                                return (
+                                    <div
+                                        key={entry.id}
+                                        className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-4"
+                                    >
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg">
+                                            ⬇
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-gray-900">
+                                                Money withdrawn
+                                            </p>
+
+                                            <p className="mt-0.5 text-sm text-gray-700">
+                                                To {w.method === "bank" ? "bank account" : "mobile money"}
+                                                {w.account_last4 ? ` ending ${w.account_last4}` : ""}
+                                                {" · "}
+                                                {statusLabel}
+                                            </p>
+
+                                            <p className="mt-1 text-xs text-gray-500">
+                                                {formatWhen(w.created_at)}
+                                            </p>
+                                        </div>
+
+                                        <p
+                                            className={`shrink-0 font-bold ${
+                                                refunded
+                                                    ? "text-gray-400 line-through"
+                                                    : "text-blue-700"
+                                            }`}
+                                        >
+                                            -${Number(w.usd_amount).toFixed(2)}
+                                        </p>
+                                    </div>
+                                );
+                            }
+
+                            const item = entry.item;
+
+                            return (
+                                <div
+                                    key={entry.id}
+                                    className="flex items-start gap-3 rounded-xl border border-green-100 bg-green-50/50 p-4"
+                                >
+
+                                    {/* ICON */}
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-lg">
+                                        💰
+                                    </div>
+
+                                    {/* DETAILS */}
+                                    <div className="min-w-0 flex-1">
+
+                                        <p className="font-semibold text-gray-900">
+                                            Revenue received
+                                        </p>
+
+                                        <p className="mt-0.5 text-sm text-gray-700 wrap-break-word">
+                                            {item.taskTitle
+                                                ? <>Platform fee for <span className="font-semibold">{item.taskTitle}</span></>
+                                                : item.description || "Platform fee"}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            {formatWhen(item.created_at)}
+                                        </p>
+
+                                    </div>
+
+                                    {/* AMOUNT */}
+                                    <p className="shrink-0 font-bold text-green-600">
+                                        +${item.amount.toFixed(2)}
+                                    </p>
+
                                 </div>
-
-                                {/* DETAILS */}
-                                <div className="min-w-0 flex-1">
-
-                                    <p className="font-semibold text-gray-900">
-                                        Revenue received
-                                    </p>
-
-                                    <p className="mt-0.5 text-sm text-gray-700 wrap-break-word">
-                                        {item.taskTitle
-                                            ? <>Platform fee for <span className="font-semibold">{item.taskTitle}</span></>
-                                            : item.description || "Platform fee"}
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        {formatWhen(item.created_at)}
-                                    </p>
-
-                                </div>
-
-                                {/* AMOUNT */}
-                                <p className="shrink-0 font-bold text-green-600">
-                                    +${item.amount.toFixed(2)}
-                                </p>
-
-                            </div>
-
-                        ))}
+                            );
+                        })}
 
                     </div>
 
                 )}
 
-                {revenue.length > 0 && (
+                {history.length > 0 && (
                     <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
 
                         <p className="text-sm text-gray-500">
                             Showing {startIndex + 1} to {endIndex} of{" "}
-                            {revenue.length}{" "}
-                            {revenue.length === 1
+                            {history.length}{" "}
+                            {history.length === 1
                                 ? "transaction"
                                 : "transactions"}
                         </p>

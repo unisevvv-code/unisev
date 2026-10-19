@@ -1,7 +1,9 @@
+
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { supabaseAdmin, getUserFromRequest } from "@/lib/supabaseAdmin";
+import { getPaystackRates } from "@/lib/paystackRate";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +85,12 @@ export async function POST(req: Request) {
 
     if (!numberOk) {
         return NextResponse.json(
-            { error: method === "mobile_money" ? "Enter a 10-digit mobile money number starting with 0" : "Invalid bank account number" },
+            {
+                error:
+                    method === "mobile_money"
+                        ? "Enter a 10-digit mobile money number starting with 0"
+                        : "Invalid bank account number",
+            },
             { status: 400 }
         );
     }
@@ -94,15 +101,18 @@ export async function POST(req: Request) {
 
     // ---------- amounts (the server decides all of them) ----------
     let rate: Decimal;
+    let publishedAt: string;
+
     try {
-        rate = new Decimal(
-            process.env.USD_GHS_PAYOUT_RATE || process.env.USD_GHS_RATE || ""
+        const rates = await getPaystackRates();
+        rate = rates.payoutRate;
+        publishedAt = rates.publishedAt;
+    } catch (error) {
+        console.error("WITHDRAWAL RATE ERROR:", error);
+        return NextResponse.json(
+            { error: "Daily exchange rate unavailable. Please try again later." },
+            { status: 503 }
         );
-    } catch {
-        rate = new Decimal(0);
-    }
-    if (!rate.isFinite() || rate.lte(0)) {
-        return NextResponse.json({ error: "Withdrawals are temporarily unavailable" }, { status: 500 });
     }
 
     const fee =
@@ -120,7 +130,9 @@ export async function POST(req: Request) {
     if (ghsNet.gt(MAX_TRANSFER_GHS)) {
         const maxUsd = MAX_TRANSFER_GHS.plus(fee).div(rate).toDecimalPlaces(2, Decimal.ROUND_DOWN);
         return NextResponse.json(
-            { error: `A single withdrawal can be at most about $${maxUsd.toFixed(2)}. Please withdraw a smaller amount.` },
+            {
+                error: `A single withdrawal can be at most about $${maxUsd.toFixed(2)}. Please withdraw a smaller amount.`,
+            },
             { status: 400 }
         );
     }
@@ -164,7 +176,7 @@ export async function POST(req: Request) {
             p_reference: reference,
             p_usd: usd.toFixed(2),
             p_rate: rate.toFixed(8),
-            p_rate_at: new Date().toISOString(),
+            p_rate_at: new Date(publishedAt).toISOString(),
             p_ghs_gross: ghsGross.toFixed(2),
             p_fee: fee.toFixed(2),
             p_ghs_net: ghsNet.toFixed(2),
@@ -208,25 +220,35 @@ export async function POST(req: Request) {
             }),
         });
     } catch (error) {
-        // Network problem: the transfer may or may not exist. Leave it pending
-        // so the webhook / a later check can settle it. Do NOT refund yet.
+        // Outcome is unknown: leave pending and do not refund yet.
         console.log("TRANSFER NETWORK ERROR:", error);
         return NextResponse.json({ status: "pending", reference });
     }
 
     const transferJson = await transferRes.json().catch(() => null);
 
-    // Definite rejection by Paystack (bad request, not enough balance, etc.): refund now
+    // Definite rejection: request a refund through the finalizer.
     if (!transferRes.ok && transferRes.status < 500) {
         console.log("TRANSFER REJECTED:", transferJson);
 
-        await supabaseAdmin.rpc("finalize_withdrawal", {
-            p_reference: reference,
-            p_outcome: "failed",
-            p_transfer_code: null,
-            p_reason: String(transferJson?.message || "transfer_rejected").slice(0, 200),
-            p_raw: transferJson,
-        });
+        const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc(
+            "finalize_withdrawal",
+            {
+                p_reference: reference,
+                p_outcome: "failed",
+                p_transfer_code: null,
+                p_reason: String(transferJson?.message || "transfer_rejected").slice(0, 200),
+                p_raw: transferJson,
+            }
+        );
+
+        if (finalizeError || !["refunded", "already_processed"].includes(finalized?.result)) {
+            console.error("WITHDRAWAL REFUND NEEDS RECONCILIATION:", finalizeError || finalized);
+            return NextResponse.json(
+                { status: "pending", reference, reconciliationRequired: true },
+                { status: 202 }
+            );
+        }
 
         return NextResponse.json(
             { error: "Withdrawals are temporarily unavailable. Your wallet was not charged." },
@@ -234,7 +256,7 @@ export async function POST(req: Request) {
         );
     }
 
-    // Paystack server problem: outcome unknown, leave pending
+    // Paystack server problem: outcome unknown, leave pending.
     if (!transferRes.ok) {
         console.log("TRANSFER SERVER ERROR:", transferJson);
         return NextResponse.json({ status: "pending", reference });
@@ -242,25 +264,46 @@ export async function POST(req: Request) {
 
     const transferCode: string | undefined = transferJson?.data?.transfer_code;
     const transferStatus: string | undefined = transferJson?.data?.status;
+    const returnedReference: string | undefined = transferJson?.data?.reference;
+
+    // Do not mark a transfer processing unless Paystack returned a valid matching response.
+    if (
+        returnedReference !== reference ||
+        !transferCode ||
+        !["pending", "otp", "success", "success_pending"].includes(transferStatus || "")
+    ) {
+        console.error("UNEXPECTED TRANSFER RESPONSE:", transferJson);
+        return NextResponse.json(
+            { status: "pending", reference, reconciliationRequired: true },
+            { status: 202 }
+        );
+    }
 
     if (transferStatus === "otp") {
-        // OTP is still switched on in Paystack. Money is reserved but not sent.
         console.log("TRANSFER WAITING FOR OTP: turn off transfer OTP in Paystack settings", transferCode);
     }
 
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
         .from("withdrawals")
         .update({
-            status: "processing",
-            transfer_code: transferCode ?? null,
+            status: transferStatus === "success" ? "completed" : "processing",
+            transfer_code: transferCode,
             failure_reason: transferStatus === "otp" ? "awaiting_otp" : null,
             updated_at: new Date().toISOString(),
         })
         .eq("reference", reference)
         .eq("status", "pending");
 
+    if (updateError) {
+        console.error("WITHDRAWAL STATUS UPDATE ERROR:", updateError);
+        return NextResponse.json(
+            { status: "pending", reference, reconciliationRequired: true },
+            { status: 202 }
+        );
+    }
+
     return NextResponse.json({
-        status: "processing",
+        status: transferStatus === "success" ? "completed" : "processing",
         reference,
         ghsNet: ghsNet.toFixed(2),
     });

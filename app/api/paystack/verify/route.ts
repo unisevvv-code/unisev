@@ -42,6 +42,18 @@ export async function GET(req: Request) {
 
     const tx = json.data;
 
+    if (tx.reference !== reference) {
+    console.error("PAYSTACK REFERENCE MISMATCH:", {
+        requestedReference: reference,
+        returnedReference: tx.reference,
+    });
+
+    return NextResponse.json(
+        { status: "pending", error: "Transaction reference mismatch" },
+        { status: 409 }
+    );
+}
+
     if (tx.status === "success") {
         const { data, error } = await supabaseAdmin.rpc("credit_wallet_from_payment", {
             p_reference: reference,

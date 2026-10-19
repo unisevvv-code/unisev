@@ -1,7 +1,9 @@
+
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { supabaseAdmin, getUserFromRequest } from "@/lib/supabaseAdmin";
+import { getPaystackRates } from "@/lib/paystackRate";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +37,21 @@ export async function POST(req: Request) {
         );
     }
 
-    // ---- fixed rate from env for now ----
+    // ---- fetch the latest daily exchange rate ----
     let rate: Decimal;
+    let publishedAt: string;
+
     try {
-        rate = new Decimal(process.env.USD_GHS_RATE || "");
-    } catch {
-        rate = new Decimal(0);
-    }
-    if (!rate.isFinite() || rate.lte(0)) {
-        return NextResponse.json({ error: "Payment rate not configured" }, { status: 500 });
+        const rates = await getPaystackRates();
+        rate = rates.rate;
+        publishedAt = rates.publishedAt;
+    } catch (error) {
+        console.error("PAYMENT RATE ERROR:", error);
+
+        return NextResponse.json(
+            { error: "Daily exchange rate unavailable. Please try again later." },
+            { status: 503 }
+        );
     }
 
     const ghs = usd.mul(rate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
@@ -58,7 +66,7 @@ export async function POST(req: Request) {
         usd_amount: usd.toFixed(2),
         ghs_amount: ghs.toFixed(2),
         exchange_rate: rate.toFixed(8),
-        rate_fetched_at: new Date().toISOString(),
+        rate_fetched_at: new Date(publishedAt).toISOString(),
         gateway: "paystack",
         gateway_currency: "GHS",
         status: "pending",

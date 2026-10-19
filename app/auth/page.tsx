@@ -54,6 +54,8 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const emailRef = useRef<HTMLInputElement>(null);
 
@@ -62,7 +64,28 @@ export default function AuthPage() {
   // Put the cursor in the email field on load and when switching modes
   useEffect(() => {
     emailRef.current?.focus();
-  }, [mode]);
+  }, [mode, awaitingConfirmation]);
+
+  // When the user lands here from the confirmation email link,
+  // show the login form with a friendly message
+  useEffect(() => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(window.location.search);
+
+    const fromConfirmationLink =
+      hash.includes("access_token") ||
+      hash.includes("type=signup") ||
+      params.has("code");
+
+    if (!fromConfirmationLink) return;
+
+    const timer = setTimeout(() => {
+      setMode("login");
+      setNotice("Email confirmed! Please log in to continue.");
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const passwordChecks = {
     length: password.length >= 8,
@@ -91,6 +114,11 @@ export default function AuthPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // Confirmation link brings the user back to this page
+          // (localhost in development, unisev.vercel.app in production)
+          emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+        },
       });
 
       if (error) {
@@ -103,9 +131,13 @@ export default function AuthPage() {
         return;
       }
 
-      alert("Account created successfully");
+      // Email confirmation is on: no session yet, so show the waiting screen
+      if (!data.session) {
+        setAwaitingConfirmation(true);
+        return;
+      }
 
-      // Send NEW users to onboarding
+      // Session exists (confirmation off): send NEW users to onboarding
       router.push("/onboarding");
 
     } catch (err: unknown) {
@@ -119,7 +151,7 @@ export default function AuthPage() {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -127,6 +159,23 @@ export default function AuthPage() {
       if (error) {
         alert(error.message);
         return;
+      }
+
+      // Users who have not finished their profile (name + client/student)
+      // go to onboarding first. If the check fails, fall back to the dashboard.
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        if (!profileError && (!profile || !profile.role)) {
+          router.push("/onboarding");
+          return;
+        }
+      } catch {
+        // ignore and continue to dashboard
       }
 
       router.push("/dashboard");
@@ -144,6 +193,38 @@ export default function AuthPage() {
     </li>
   );
 
+  // WAITING FOR EMAIL CONFIRMATION SCREEN
+  if (awaitingConfirmation) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
+        <div className="bg-white p-6 sm:p-8 rounded-xl shadow w-full max-w-105 space-y-4 text-center">
+          <h1 className="text-2xl font-bold">Waiting for email confirmation</h1>
+
+          <p className="text-sm text-gray-700">
+            We sent a confirmation link to <strong>{email}</strong>. Open your
+            email and click the link to confirm your account.
+          </p>
+
+          <p className="text-xs text-gray-500">
+            Can&apos;t find it? Check your spam folder.
+          </p>
+
+          <button
+            onClick={() => {
+              setAwaitingConfirmation(false);
+              setMode("login");
+              setPassword("");
+              setNotice("After confirming your email, log in below.");
+            }}
+            className="w-full bg-black text-white py-3 rounded"
+          >
+            Go to Login
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
 
@@ -152,6 +233,12 @@ export default function AuthPage() {
         <h1 className="text-2xl font-bold text-center">
           {mode === "signup" ? "Create Account" : "Login"}
         </h1>
+
+        {notice && mode === "login" && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3 text-center">
+            {notice}
+          </p>
+        )}
 
         <input
           ref={emailRef}

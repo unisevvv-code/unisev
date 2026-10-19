@@ -16,6 +16,11 @@ import {
     Zap,
     Activity,
     ChevronRight,
+    ArrowDownCircle,
+    ArrowUpCircle,
+    Lock,
+    RotateCcw,
+    HelpCircle,
 } from "lucide-react";
 
 import Header from "./Header";
@@ -26,6 +31,8 @@ import MessagesPage from "./MessagesPage";
 import ApplicationsPage from "./ApplicationsPage";
 import Wallet from "./Wallet";
 import ClientProfile from "./Profile";
+import HowItWorks from "@/components/HowItWorks";
+import { getGreeting } from "@/lib/greeting";
 
 type Task = {
     id: string;
@@ -90,6 +97,9 @@ export default function ClientDashboard() {
 
     const [name, setName] = useState("");
 
+    // true only the very first time a new account opens the dashboard
+    const [isFirstVisit, setIsFirstVisit] = useState(false);
+
     const [profile, setProfile] = useState({
         bio: "",
     });
@@ -114,7 +124,7 @@ export default function ClientDashboard() {
 
     // Recent Activity feed for the dashboard. Merged from
     // `applications` (on this client's tasks) and `wallet_transactions`
-    // (payment releases). Adjust the mapping in getRecentActivity()
+    // (deposits, withdrawals, escrow holds, releases and refunds). Adjust the mapping in getRecentActivity()
     // if your table/column names differ.
     const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
 
@@ -130,7 +140,7 @@ export default function ClientDashboard() {
         const { data, error } =
             await supabase
                 .from("profiles")
-                .select("full_name, bio")
+                .select("*")
                 .eq("id", userData.user.id)
                 .single();
 
@@ -141,6 +151,17 @@ export default function ClientDashboard() {
 
         if (data) {
             setName(data.full_name || "");
+
+            // First time on a new account: show the welcome once, then
+            // remember it so later visits get the normal greetings.
+            if (data.welcomed === false) {
+                setIsFirstVisit(true);
+
+                await supabase
+                    .from("profiles")
+                    .update({ welcomed: true })
+                    .eq("id", userData.user.id);
+            }
 
             setProfile({
                 bio: data.bio || "",
@@ -315,9 +336,16 @@ export default function ClientDashboard() {
                 .from("wallet_transactions")
                 .select("id, amount, type, description, created_at")
                 .eq("wallet_id", walletData.id)
-                .eq("type", "release")
+                .in("type", [
+                    "release",
+                    "deposit",
+                    "withdrawal",
+                    "refund",
+                    "hold",
+                    "payment",
+                ])
                 .order("created_at", { ascending: false })
-                .limit(5);
+                .limit(10);
 
             if (transactionError) {
                 console.log(
@@ -327,15 +355,67 @@ export default function ClientDashboard() {
             } else {
                 paymentItems = (
                     (transactionData as WalletTransactionRow[]) || []
-                ).map((t) => ({
-                    id: `pay-${t.id}`,
-                    title: "Payment released to student",
-                    subtitle: t.description || "",
-                    badge: "Payment",
-                    badgeColor: "orange",
-                    iconType: "wallet",
-                    created_at: t.created_at,
-                }));
+                ).map((t): RecentActivityItem => {
+                    const id = `pay-${t.id}`;
+                    const amountText = `$${Number(t.amount).toFixed(2)}`;
+
+                    switch (t.type) {
+                        case "deposit":
+                            return {
+                                id,
+                                title: "Funds deposited",
+                                subtitle: amountText,
+                                badge: "Deposit",
+                                badgeColor: "green",
+                                iconType: "deposit",
+                                created_at: t.created_at,
+                            };
+
+                        case "withdrawal":
+                            return {
+                                id,
+                                title: "Funds withdrawn",
+                                subtitle: amountText,
+                                badge: "Withdrawal",
+                                badgeColor: "purple",
+                                iconType: "withdraw",
+                                created_at: t.created_at,
+                            };
+
+                        case "refund":
+                            return {
+                                id,
+                                title: "Refund received",
+                                subtitle: amountText,
+                                badge: "Refund",
+                                badgeColor: "blue",
+                                iconType: "refund",
+                                created_at: t.created_at,
+                            };
+
+                        case "hold":
+                            return {
+                                id,
+                                title: "Funds held in escrow",
+                                subtitle: t.description || amountText,
+                                badge: "Escrow",
+                                badgeColor: "orange",
+                                iconType: "escrow",
+                                created_at: t.created_at,
+                            };
+
+                        default:
+                            return {
+                                id,
+                                title: "Payment released to student",
+                                subtitle: t.description || "",
+                                badge: "Payment",
+                                badgeColor: "orange",
+                                iconType: "wallet",
+                                created_at: t.created_at,
+                            };
+                    }
+                });
             }
         }
 
@@ -345,7 +425,7 @@ export default function ClientDashboard() {
                     new Date(b.created_at).getTime() -
                     new Date(a.created_at).getTime()
             )
-            .slice(0, 5);
+            .slice(0, 6);
 
         setRecentActivity(merged);
     }
@@ -596,6 +676,15 @@ export default function ClientDashboard() {
         getRecentActivity();
     }, [getProfile]);
 
+    // Refresh the feed whenever the overview is shown again, so a deposit
+    // or withdrawal made on the Wallet page appears straight away.
+    useEffect(() => {
+        if (activePage === "dashboard") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            getRecentActivity();
+        }
+    }, [activePage]); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         if (tasks.length > 0) {
             // getApplicationCount only calls setApplicationCount after its
@@ -680,6 +769,9 @@ export default function ClientDashboard() {
             case "wallet":
                 return <Wallet />;
 
+            case "howitworks":
+                return <HowItWorks />;
+
             case "requests":
                 return (
                     <ApplicationsPage
@@ -697,12 +789,11 @@ export default function ClientDashboard() {
                         <div>
 
                             <h1 className="text-3xl font-bold">
-                                Welcome back,{" "}
-                                {name} 👋
+                                {getGreeting(name, isFirstVisit, "client").title}
                             </h1>
 
                             <p className="mt-2 text-gray-500">
-                                Here&apos;s what&apos;s happening with your tasks today.
+                                {getGreeting(name, isFirstVisit, "client").subtitle}
                             </p>
 
                         </div>
@@ -823,6 +914,10 @@ export default function ClientDashboard() {
                                                 check: "bg-green-50 text-green-600",
                                                 message: "bg-purple-50 text-purple-600",
                                                 wallet: "bg-orange-50 text-orange-500",
+                                                deposit: "bg-green-50 text-green-600",
+                                                withdraw: "bg-purple-50 text-purple-600",
+                                                refund: "bg-blue-50 text-blue-600",
+                                                escrow: "bg-orange-50 text-orange-500",
                                             };
 
                                             return (
@@ -838,6 +933,14 @@ export default function ClientDashboard() {
                                                                 <CheckCircle2 className="w-4 h-4" />
                                                             ) : item.iconType === "message" ? (
                                                                 <MessageSquare className="w-4 h-4" />
+                                                            ) : item.iconType === "deposit" ? (
+                                                                <ArrowDownCircle className="w-4 h-4" />
+                                                            ) : item.iconType === "withdraw" ? (
+                                                                <ArrowUpCircle className="w-4 h-4" />
+                                                            ) : item.iconType === "refund" ? (
+                                                                <RotateCcw className="w-4 h-4" />
+                                                            ) : item.iconType === "escrow" ? (
+                                                                <Lock className="w-4 h-4" />
                                                             ) : item.iconType === "wallet" ? (
                                                                 <WalletIcon className="w-4 h-4" />
                                                             ) : (
@@ -941,6 +1044,20 @@ export default function ClientDashboard() {
                                         <div className="flex-1">
                                             <p className="font-semibold text-gray-900">Wallet</p>
                                             <p className="text-sm text-gray-500">Manage your payments</p>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActivePage("howitworks")}
+                                        className="w-full flex items-center gap-3 text-left border rounded-xl p-3 hover:bg-gray-50 transition"
+                                    >
+                                        <div className="w-10 h-10 shrink-0 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <HelpCircle className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-gray-900">How UniSeV Works</p>
+                                            <p className="text-sm text-gray-500">Learn how tasks, payments and messaging work</p>
                                         </div>
                                         <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                                     </button>

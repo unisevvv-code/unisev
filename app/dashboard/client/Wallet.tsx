@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+    Wallet as WalletIcon,
+    Clock,
+    ArrowUpDown,
+    Download,
+    Plus,
+} from "lucide-react";
 
 interface Wallet {
     id: string;
@@ -540,13 +547,26 @@ export default function Wallet() {
             </div>
 
 
-            {/* BALANCE */}
+            {/* MAIN BALANCE */}
 
-            <div className="mt-6 sm:mt-8 bg-white border rounded-2xl p-5 sm:p-8">
+            <div className="mt-6 sm:mt-8 relative overflow-hidden bg-linear-to-br from-white to-green-50 border rounded-2xl p-5 sm:p-8">
 
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                {/* decorative background wave */}
+                <svg
+                    className="absolute bottom-0 right-0 w-1/2 sm:w-2/3 h-28 sm:h-40 text-green-100/70 pointer-events-none"
+                    viewBox="0 0 400 150"
+                    preserveAspectRatio="none"
+                    fill="none"
+                >
+                    <path
+                        d="M0,120 C80,60 160,140 240,90 C300,55 340,90 400,40 L400,150 L0,150 Z"
+                        fill="currentColor"
+                    />
+                </svg>
 
-                    <div>
+                <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+
+                    <div className="min-w-0">
 
                         <p className="text-sm text-gray-500">
                             Available Balance
@@ -562,63 +582,34 @@ export default function Wallet() {
 
                     </div>
 
-                    <div className="
-                        self-start
-                        px-4
-                        py-2
-                        rounded-full
-                        bg-blue-50
-                        text-blue-700
-                        text-sm
-                        font-semibold
-                        shrink-0
-                    ">
-                        Client Wallet
+                    <div className="self-start flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 text-green-700 text-sm font-semibold shrink-0">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        Active
                     </div>
 
                 </div>
 
 
-                {/* ADD FUNDS + WITHDRAW */}
+                {/* ADD FUNDS (far left) + WITHDRAW (far right) */}
 
-                <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+                <div className="relative mt-8 sm:mt-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
                     <button
+                        type="button"
                         onClick={openAddFunds}
-                        className="
-                            w-full
-                            sm:w-auto
-                            px-6
-                            py-3
-                            rounded-xl
-                            bg-blue-600
-                            hover:bg-blue-700
-                            text-white
-                            font-semibold
-                            transition
-                        "
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-700 text-white font-semibold transition whitespace-nowrap"
                     >
+                        <Plus className="w-4 h-4" />
                         Add Funds
                     </button>
 
                     <button
+                        type="button"
                         onClick={openWithdraw}
                         disabled={availableBalance <= 0}
-                        className="
-                            w-full
-                            sm:w-auto
-                            px-6
-                            py-3
-                            rounded-xl
-                            bg-green-600
-                            hover:bg-green-700
-                            disabled:bg-gray-300
-                            disabled:cursor-not-allowed
-                            text-white
-                            font-semibold
-                            transition
-                        "
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold transition whitespace-nowrap"
                     >
+                        <Download className="w-4 h-4" />
                         Withdraw Funds
                     </button>
 
@@ -629,72 +620,42 @@ export default function Wallet() {
 
             {/* SUMMARY */}
 
-            <div className="
-                grid
-                grid-cols-1
-                sm:grid-cols-3
-                gap-4
-                sm:gap-5
-                mt-6
-            ">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mt-5 sm:mt-6">
 
-                {/* AVAILABLE */}
-
-                <div className="bg-white border rounded-2xl p-5 sm:p-6">
-
-                    <p className="text-sm text-gray-500">
-                        Available
-                    </p>
-
-                    <p className="
-                        text-2xl
-                        font-bold
-                        text-blue-600
-                        mt-2
-                    ">
-                        ${availableBalance.toFixed(2)}
-                    </p>
-
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-blue-50 flex items-center justify-center">
+                        <WalletIcon className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">Available</p>
+                        <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1 truncate">
+                            ${availableBalance.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
-
-                {/* IN ESCROW */}
-
-                <div className="bg-white border rounded-2xl p-5 sm:p-6">
-
-                    <p className="text-sm text-gray-500">
-                        In Escrow
-                    </p>
-
-                    <p className="
-                        text-2xl
-                        font-bold
-                        text-yellow-600
-                        mt-2
-                    ">
-                        ${inEscrow.toFixed(2)}
-                    </p>
-
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-orange-50 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">In Escrow</p>
+                        <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1 truncate">
+                            ${inEscrow.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
-
-                {/* TOTAL SPENT */}
-
-                <div className="bg-white border rounded-2xl p-5 sm:p-6">
-
-                    <p className="text-sm text-gray-500">
-                        Total Spent
-                    </p>
-
-                    <p className="
-                        text-2xl
-                        font-bold
-                        text-gray-700
-                        mt-2
-                    ">
-                        ${totalSpent.toFixed(2)}
-                    </p>
-
+                <div className="bg-white border rounded-2xl p-5 sm:p-6 flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
+                        <ArrowUpDown className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm text-gray-500">Total Spent</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-700 mt-1 truncate">
+                            ${totalSpent.toFixed(2)}
+                        </p>
+                    </div>
                 </div>
 
             </div>

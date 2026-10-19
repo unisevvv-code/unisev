@@ -1,15 +1,36 @@
+
 import { NextResponse } from "next/server";
+import { getPaystackRates } from "@/lib/paystackRate";
 
 export const dynamic = "force-dynamic";
 
-// Used only to show an estimate in the Add Funds box.
-// The real amount is always calculated again on the server at payment time.
+function fee(value: string | undefined, fallback: number): number {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 export async function GET() {
-    const rate = Number(process.env.USD_GHS_RATE);
+    try {
+        const { rate, payoutRate, publishedAt } = await getPaystackRates();
 
-    if (!Number.isFinite(rate) || rate <= 0) {
-        return NextResponse.json({ error: "Rate unavailable" }, { status: 500 });
+        return NextResponse.json({
+            rate: rate.toNumber(),
+            payoutRate: payoutRate.toNumber(),
+            publishedAt,
+            source: "Bank of Ghana interbank reference rate",
+            feeMobile: fee(process.env.WITHDRAWAL_FEE_MOBILE_GHS, 1),
+            feeBank: fee(process.env.WITHDRAWAL_FEE_BANK_GHS, 8),
+        });
+    } catch (error) {
+        console.error(
+    "PAYSTACK RATE ERROR:",
+    error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : String(error)
+);
+        return NextResponse.json(
+            { error: "Daily exchange rate unavailable. Please try again later." },
+            { status: 503 }
+        );
     }
-
-    return NextResponse.json({ rate });
 }

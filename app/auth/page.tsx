@@ -193,6 +193,27 @@ export default function AuthPage() {
     </li>
   );
 
+  // Link that opens the user's inbox, based on their email provider
+  function getInboxUrl(address: string) {
+    const domain = address.split("@")[1]?.toLowerCase() ?? "";
+
+    if (domain === "gmail.com" || domain === "googlemail.com") {
+      return "https://mail.google.com/mail/u/0/#inbox";
+    }
+    if (["outlook.com", "hotmail.com", "live.com", "msn.com"].includes(domain)) {
+      return "https://outlook.live.com/mail/0/inbox";
+    }
+    if (domain.startsWith("yahoo.")) {
+      return "https://mail.yahoo.com/";
+    }
+    if (domain === "icloud.com" || domain === "me.com") {
+      return "https://www.icloud.com/mail";
+    }
+
+    // Unknown provider: open the default mail app
+    return "mailto:";
+  }
+
   // WAITING FOR EMAIL CONFIRMATION SCREEN
   if (awaitingConfirmation) {
     return (
@@ -209,6 +230,15 @@ export default function AuthPage() {
             Can&apos;t find it? Check your spam folder.
           </p>
 
+          <a
+            href={getInboxUrl(email)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full bg-black text-white py-3 rounded"
+          >
+            Open my email
+          </a>
+
           <button
             onClick={() => {
               setAwaitingConfirmation(false);
@@ -216,9 +246,9 @@ export default function AuthPage() {
               setPassword("");
               setNotice("After confirming your email, log in below.");
             }}
-            className="w-full bg-black text-white py-3 rounded"
+            className="w-full text-blue-600 text-sm"
           >
-            Go to Login
+            Already confirmed? Go to Login
           </button>
         </div>
       </main>

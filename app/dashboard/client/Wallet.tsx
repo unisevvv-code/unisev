@@ -1169,6 +1169,11 @@ export default function Wallet() {
 
                                 {withdrawError && <p className="text-sm text-red-600 mt-3">{withdrawError}</p>}
 
+                                <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                                    Withdrawals are only processed on working days (Monday to Friday, excluding public holidays).
+                                    Requests made on a weekend or holiday may not go through until the next business day.
+                                </div>
+
                                 <div className="flex flex-col-reverse sm:flex-row gap-3 mt-6">
                                     <button
                                         type="button"

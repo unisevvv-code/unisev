@@ -251,7 +251,7 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json(
-            { error: "Withdrawals are temporarily unavailable. Your wallet was not charged." },
+            { error: "Withdrawals are temporarily unavailable. Try again after 24 hours." },
             { status: 502 }
         );
     }

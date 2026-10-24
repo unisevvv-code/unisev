@@ -100,6 +100,12 @@ export default function Sidebar({
         />
       )}
 
+      {/*
+        On phones the drawer uses h-dvh (the visible screen height)
+        instead of min-h-screen (100vh). 100vh is taller than the
+        visible area on mobile browsers, which pushed the Logout
+        button down behind the browser's bottom bar.
+      */}
       <aside
         className={`
           fixed
@@ -107,7 +113,7 @@ export default function Sidebar({
           left-0
           z-50
           w-64
-          min-h-screen
+          h-dvh
           transform
           bg-white
           border-r
@@ -117,13 +123,14 @@ export default function Sidebar({
           duration-200
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
           lg:static
+          lg:h-auto
           lg:min-h-[calc(100vh-80px)]
           lg:translate-x-0
         `}
       >
 
         {/* MOBILE DRAWER CLOSE BUTTON */}
-        <div className="flex justify-end p-3 lg:hidden">
+        <div className="flex justify-end p-3 lg:hidden shrink-0">
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -144,8 +151,8 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* MAIN NAVIGATION */}
-        <div className="p-4">
+        {/* MAIN NAVIGATION (scrolls if the screen is short) */}
+        <div className="p-4 flex-1 overflow-y-auto">
 
           {/* DASHBOARD */}
           <div
@@ -195,10 +202,6 @@ export default function Sidebar({
             Messages
           </div>
 
-        </div>
-
-
-
           {/* WALLET */}
           <div
             onClick={() => handleNav("wallet")}
@@ -211,11 +214,10 @@ export default function Sidebar({
             Wallet
           </div>
 
+        </div>
 
-
-
-        {/* PROFILE AT BOTTOM */}
-        <div className="mt-auto border-t p-4">
+        {/* PROFILE + LOGOUT, ALWAYS PINNED AT THE BOTTOM */}
+        <div className="shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
 
           {/* PROFILE BUTTON */}
           <button

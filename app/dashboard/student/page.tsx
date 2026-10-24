@@ -205,8 +205,19 @@ export default function StudentDashboard() {
     const [currentUserId, setCurrentUserId] =
         useState("");
 
-    const [activePage, setActivePage] =
+    // The page shown inside the dashboard. Changing it also adds a
+    // browser-history entry (see setActivePage below), so the phone's
+    // Back button goes to the previous dashboard page instead of
+    // leaving the app.
+    const [activePage, setActivePageState] =
         useState("dashboard");
+
+    function setActivePage(page: string) {
+        if (page === activePage) return;
+
+        window.history.pushState({ page }, "");
+        setActivePageState(page);
+    }
 
     // Shared mobile nav state: the hamburger button lives in the
     // (dark) Header, but the drawer it opens is rendered by Sidebar.
@@ -289,6 +300,20 @@ export default function StudentDashboard() {
             getRecentActivity();
         }
     }, [activePage]);
+
+    // Phone / browser Back button: show the dashboard page that was open
+    // before. The first entry has no saved page, so it means "dashboard".
+    useEffect(() => {
+        function handlePopState(event: PopStateEvent) {
+            setActivePageState(event.state?.page ?? "dashboard");
+            setMobileNavOpen(false);
+        }
+
+        window.addEventListener("popstate", handlePopState);
+
+        return () =>
+            window.removeEventListener("popstate", handlePopState);
+    }, []);
 
     // ==========================================
     // GET PROFILE

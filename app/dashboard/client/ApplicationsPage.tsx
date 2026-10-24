@@ -43,6 +43,16 @@ interface Application {
     profiles: ApplicantProfile;
 }
 
+// A message shown in an in-page dialog (replaces the old alert() popups).
+// If actionLabel + onAction are set, the dialog also shows an action button.
+interface NoticeState {
+    type: "success" | "error";
+    title: string;
+    lines: string[];
+    actionLabel?: string;
+    onAction?: () => void;
+}
+
 const AVATAR_COLORS = [
     "bg-blue-500",
     "bg-green-500",
@@ -78,6 +88,10 @@ export default function ApplicationsPage({
 
     const [completionPopupId, setCompletionPopupId] =
         useState<string | null>(null);
+
+    // In-page message dialog (replaces alert())
+    const [notice, setNotice] =
+        useState<NoticeState | null>(null);
 
     useEffect(() => {
         loadApplications();
@@ -243,7 +257,11 @@ export default function ApplicationsPage({
             } = await supabase.auth.getUser();
 
             if (userError || !userData.user) {
-                alert("Your session has expired. Please log in again.");
+                setNotice({
+                    type: "error",
+                    title: "Session expired",
+                    lines: ["Your session has expired. Please log in again."],
+                });
                 return;
             }
 
@@ -265,18 +283,28 @@ export default function ApplicationsPage({
                     const walletBalance = Number(parts[1] || 0);
                     const requiredAmount = Number(parts[2] || 0);
 
-                    alert(
-                        `Insufficient funds.\n\n` +
-                        `Available balance: $${walletBalance.toFixed(2)}\n` +
-                        `Required amount: $${requiredAmount.toFixed(2)}\n\n` +
-                        `Please add funds to your wallet before accepting this student.`
-                    );
+                    // The user goes to the wallet when they press the
+                    // button, so the message stays visible until then.
+                    setNotice({
+                        type: "error",
+                        title: "Insufficient funds",
+                        lines: [
+                            `Available balance: $${walletBalance.toFixed(2)}`,
+                            `Required amount: $${requiredAmount.toFixed(2)}`,
+                            "Please add funds to your wallet before accepting this student.",
+                        ],
+                        actionLabel: "Go to Wallet",
+                        onAction: goToWallet,
+                    });
 
-                    goToWallet();
                     return;
                 }
 
-                alert(errorMessage || "Could not accept this student.");
+                setNotice({
+                    type: "error",
+                    title: "Could not accept student",
+                    lines: [errorMessage || "Could not accept this student."],
+                });
                 return;
             }
 
@@ -307,29 +335,39 @@ export default function ApplicationsPage({
             }
 
             if (String(result.task_type).toLowerCase() === "multi") {
-                alert(
-                    `Student accepted successfully.\n\n` +
-                    `Amount funded: $${Number(result.amount).toFixed(2)}\n\n` +
-                    `Participants: ${result.current_participants}/${result.max_participants}\n\n` +
-                    `Remaining wallet balance: $${Number(
-                        result.remaining_balance
-                    ).toFixed(2)}`
-                );
+                setNotice({
+                    type: "success",
+                    title: "Student accepted successfully",
+                    lines: [
+                        `Amount funded: $${Number(result.amount).toFixed(2)}`,
+                        `Participants: ${result.current_participants}/${result.max_participants}`,
+                        `Remaining wallet balance: $${Number(
+                            result.remaining_balance
+                        ).toFixed(2)}`,
+                    ],
+                });
             } else {
-                alert(
-                    `Student selected successfully.\n\n` +
-                    `Amount funded: $${Number(result.amount).toFixed(2)}\n\n` +
-                    `Remaining wallet balance: $${Number(
-                        result.remaining_balance
-                    ).toFixed(2)}`
-                );
+                setNotice({
+                    type: "success",
+                    title: "Student selected successfully",
+                    lines: [
+                        `Amount funded: $${Number(result.amount).toFixed(2)}`,
+                        `Remaining wallet balance: $${Number(
+                            result.remaining_balance
+                        ).toFixed(2)}`,
+                    ],
+                });
             }
 
             await loadApplications();
 
         } catch (error) {
             console.log("UNEXPECTED ACCEPT ERROR:", error);
-            alert("Something went wrong while accepting the student.");
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: ["Something went wrong while accepting the student."],
+            });
 
         } finally {
             setProcessingId(null);
@@ -351,7 +389,13 @@ export default function ApplicationsPage({
 
             if (error) {
                 console.log("CONFIRM COMPLETION ERROR:", error);
-                alert(error.message || "Could not confirm task completion.");
+                setNotice({
+                    type: "error",
+                    title: "Could not confirm completion",
+                    lines: [
+                        error.message || "Could not confirm task completion.",
+                    ],
+                });
                 return;
             }
 
@@ -359,15 +403,23 @@ export default function ApplicationsPage({
 
             setCompletionPopupId(null);
 
-            alert(
-                "Task completed successfully.\n\nThe escrow payment has been released to the student."
-            );
+            setNotice({
+                type: "success",
+                title: "Task completed successfully",
+                lines: [
+                    "The escrow payment has been released to the student.",
+                ],
+            });
 
             await loadApplications();
 
         } catch (error) {
             console.log("UNEXPECTED COMPLETION ERROR:", error);
-            alert("Something went wrong while confirming the task.");
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: ["Something went wrong while confirming the task."],
+            });
 
         } finally {
             setProcessingId(null);
@@ -389,24 +441,36 @@ export default function ApplicationsPage({
 
             if (error) {
                 console.log("REJECT COMPLETION ERROR:", error);
-                alert(
-                    error.message ||
-                    "Could not reject the completion request."
-                );
+                setNotice({
+                    type: "error",
+                    title: "Could not reject request",
+                    lines: [
+                        error.message ||
+                        "Could not reject the completion request.",
+                    ],
+                });
                 return;
             }
 
             setCompletionPopupId(null);
 
-            alert(
-                "Completion request rejected.\n\nThe task remains active and the escrow payment is still held."
-            );
+            setNotice({
+                type: "success",
+                title: "Completion request rejected",
+                lines: [
+                    "The task remains active and the escrow payment is still held.",
+                ],
+            });
 
             await loadApplications();
 
         } catch (error) {
             console.log("UNEXPECTED REJECTION ERROR:", error);
-            alert("Something went wrong.");
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: ["Something went wrong."],
+            });
 
         } finally {
             setProcessingId(null);
@@ -1140,6 +1204,142 @@ export default function ApplicationsPage({
                                     ? "Processing..."
                                     : "Yes, Confirm"}
                             </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            )}
+
+
+            {/* ===================================================== */}
+            {/* MESSAGE DIALOG (replaces the old alert() popups) */}
+            {/* ===================================================== */}
+
+            {notice && (
+                <div
+                    className="
+                        fixed
+                        inset-0
+                        z-60
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/50
+                        backdrop-blur-sm
+                        p-4
+                    "
+                    onClick={() => setNotice(null)}
+                >
+
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="
+                            w-full
+                            max-w-md
+                            bg-white
+                            rounded-2xl
+                            shadow-2xl
+                            p-5
+                            sm:p-7
+                        "
+                        onClick={(e) => e.stopPropagation()}
+                    >
+
+                        <h3
+                            className={`
+                                text-lg
+                                sm:text-xl
+                                font-bold
+                                ${
+                                    notice.type === "success"
+                                        ? "text-green-700"
+                                        : "text-red-600"
+                                }
+                            `}
+                        >
+                            {notice.title}
+                        </h3>
+
+                        <div className="mt-4 space-y-2">
+                            {notice.lines.map((line, index) => (
+                                <p
+                                    key={index}
+                                    className="text-gray-600 text-sm sm:text-base"
+                                >
+                                    {line}
+                                </p>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-7">
+
+                            {notice.actionLabel && notice.onAction ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNotice(null)}
+                                        className="
+                                            w-full
+                                            sm:w-auto
+                                            px-5
+                                            py-2.5
+                                            rounded-xl
+                                            border
+                                            font-semibold
+                                            text-gray-700
+                                            hover:bg-gray-50
+                                            active:bg-gray-50
+                                        "
+                                    >
+                                        Close
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const action = notice.onAction;
+                                            setNotice(null);
+                                            action?.();
+                                        }}
+                                        className="
+                                            w-full
+                                            sm:w-auto
+                                            px-5
+                                            py-2.5
+                                            rounded-xl
+                                            bg-blue-600
+                                            text-white
+                                            font-semibold
+                                            hover:bg-blue-700
+                                            active:bg-blue-700
+                                        "
+                                    >
+                                        {notice.actionLabel}
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setNotice(null)}
+                                    className="
+                                        w-full
+                                        sm:w-auto
+                                        px-6
+                                        py-2.5
+                                        rounded-xl
+                                        bg-black
+                                        text-white
+                                        font-semibold
+                                        hover:bg-gray-800
+                                        active:bg-gray-800
+                                    "
+                                >
+                                    OK
+                                </button>
+                            )}
 
                         </div>
 

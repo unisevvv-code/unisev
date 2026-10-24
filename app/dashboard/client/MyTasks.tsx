@@ -43,6 +43,13 @@ type AcceptedApplicationRow = {
     profiles: { full_name: string | null }[] | null;
 };
 
+// A message shown in an in-page dialog (replaces the old alert() popups)
+interface NoticeState {
+    type: "success" | "error";
+    title: string;
+    lines: string[];
+}
+
 interface MyTasksProps {
     tasks: Task[];
 }
@@ -77,6 +84,10 @@ export default function MyTasks({
 
     const [submittingRating, setSubmittingRating] =
         useState(false);
+
+    // In-page message dialog (replaces alert())
+    const [notice, setNotice] =
+        useState<NoticeState | null>(null);
 
     // Rated (task, student) pairs — keyed by `${task_id}_${student_id}`
     // rather than just task_id, so rating one student on a multi task
@@ -410,10 +421,14 @@ export default function MyTasks({
                     error
                 );
 
-                alert(
-                    error.message ||
-                    "Could not confirm task completion."
-                );
+                setNotice({
+                    type: "error",
+                    title: "Could not confirm completion",
+                    lines: [
+                        error.message ||
+                        "Could not confirm task completion.",
+                    ],
+                });
 
                 return;
             }
@@ -438,9 +453,13 @@ export default function MyTasks({
                 error
             );
 
-            alert(
-                "Something went wrong while confirming the task."
-            );
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: [
+                    "Something went wrong while confirming the task.",
+                ],
+            });
 
         } finally {
 
@@ -481,19 +500,27 @@ export default function MyTasks({
                     error
                 );
 
-                alert(
-                    error.message ||
-                    "Could not reject the completion request."
-                );
+                setNotice({
+                    type: "error",
+                    title: "Could not reject request",
+                    lines: [
+                        error.message ||
+                        "Could not reject the completion request.",
+                    ],
+                });
 
                 return;
             }
 
             setCompletionPopupId(null);
 
-            alert(
-                "Completion request rejected.\n\nThe slot remains active and the escrow payment for this student is still held."
-            );
+            setNotice({
+                type: "success",
+                title: "Completion request rejected",
+                lines: [
+                    "The slot remains active and the escrow payment for this student is still held.",
+                ],
+            });
 
             await loadApplications();
 
@@ -504,9 +531,11 @@ export default function MyTasks({
                 error
             );
 
-            alert(
-                "Something went wrong."
-            );
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: ["Something went wrong."],
+            });
 
         } finally {
 
@@ -529,9 +558,13 @@ export default function MyTasks({
             rating < 1 ||
             rating > 5
         ) {
-            alert(
-                "Please select a rating from 1 to 5 stars."
-            );
+            setNotice({
+                type: "error",
+                title: "Select a rating",
+                lines: [
+                    "Please select a rating from 1 to 5 stars.",
+                ],
+            });
             return;
         }
 
@@ -592,10 +625,14 @@ export default function MyTasks({
                     );
                 }
 
-                alert(
-                    error.message ||
-                    "Could not submit the rating."
-                );
+                setNotice({
+                    type: "error",
+                    title: "Could not submit rating",
+                    lines: [
+                        error.message ||
+                        "Could not submit the rating.",
+                    ],
+                });
 
                 return;
             }
@@ -619,9 +656,11 @@ export default function MyTasks({
             setRating(0);
             setReview("");
 
-            alert(
-                "Thank you! Your rating has been submitted."
-            );
+            setNotice({
+                type: "success",
+                title: "Thank you!",
+                lines: ["Your rating has been submitted."],
+            });
 
         } catch (error) {
 
@@ -630,9 +669,13 @@ export default function MyTasks({
                 error
             );
 
-            alert(
-                "Something went wrong while submitting the rating."
-            );
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: [
+                    "Something went wrong while submitting the rating.",
+                ],
+            });
 
         } finally {
 
@@ -2505,6 +2548,108 @@ export default function MyTasks({
                                 {submittingRating
                                     ? "Submitting..."
                                     : "Submit Rating"}
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            )}
+
+
+            {/* ===================================================== */}
+            {/* MESSAGE DIALOG (replaces the old alert() popups) */}
+            {/* ===================================================== */}
+
+            {notice && (
+
+                <div
+                    className="
+                        fixed
+                        inset-0
+                        z-60
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/40
+                        p-4
+                        backdrop-blur-sm
+                    "
+                    onClick={() => setNotice(null)}
+                >
+
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="
+                            w-full
+                            max-w-md
+                            rounded-2xl
+                            border
+                            border-slate-100
+                            bg-white
+                            p-5
+                            shadow-2xl
+                            sm:p-7
+                        "
+                        onClick={(e) =>
+                            e.stopPropagation()
+                        }
+                    >
+
+                        <h3
+                            className={`
+                                text-lg
+                                font-bold
+                                sm:text-xl
+                                ${
+                                    notice.type === "success"
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                }
+                            `}
+                        >
+                            {notice.title}
+                        </h3>
+
+                        <div className="mt-4 space-y-2">
+                            {notice.lines.map(
+                                (line, index) => (
+                                    <p
+                                        key={index}
+                                        className="
+                                            text-sm
+                                            leading-6
+                                            text-slate-600
+                                            sm:text-[15px]
+                                        "
+                                    >
+                                        {line}
+                                    </p>
+                                )
+                            )}
+                        </div>
+
+                        <div className="mt-7 flex justify-end">
+
+                            <button
+                                type="button"
+                                onClick={() => setNotice(null)}
+                                className="
+                                    w-full
+                                    rounded-xl
+                                    bg-slate-900
+                                    px-6
+                                    py-2.5
+                                    font-semibold
+                                    text-white
+                                    transition
+                                    hover:bg-slate-800
+                                    sm:w-auto
+                                "
+                            >
+                                OK
                             </button>
 
                         </div>

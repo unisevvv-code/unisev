@@ -123,6 +123,9 @@ export default function PostTask({
     const [multiFiles, setMultiFiles] = useState<File[]>([]);
     const [isMultiDragging, setIsMultiDragging] = useState(false);
 
+    // Inline error for the Multi Task form (replaces the old alert popup)
+    const [multiError, setMultiError] = useState("");
+
     const categories = [
         { name: "Data Entry", price: 10 },
         { name: "Virtual Assistant", price: 12 },
@@ -314,10 +317,13 @@ export default function PostTask({
         setRewardPerParticipant("");
         setDurationMinutes("");
         setMultiFiles([]);
+        setMultiError("");
     }
 
     async function handleMultiCreate() {
         if (isSubmitting) return;
+
+        setMultiError("");
 
         if (
             !multiTitle.trim() ||
@@ -327,7 +333,7 @@ export default function PostTask({
             !rewardPerParticipant ||
             !durationMinutes
         ) {
-            alert("Please complete all required Multi Task fields.");
+            setMultiError("Please complete all required Multi Task fields.");
             return;
         }
 
@@ -847,6 +853,15 @@ export default function PostTask({
                                 Double-check the details above before
                                 publishing your multi task.
                             </p>
+
+                            {multiError && (
+                                <p
+                                    role="alert"
+                                    className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3"
+                                >
+                                    {multiError}
+                                </p>
+                            )}
 
                             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                                 <button

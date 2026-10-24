@@ -57,6 +57,7 @@ export default function AuthPage() {
   const [showTerms, setShowTerms] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [notice, setNotice] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const emailRef = useRef<HTMLInputElement>(null);
 
@@ -99,13 +100,15 @@ export default function AuthPage() {
   const passwordValid = Object.values(passwordChecks).every(Boolean);
 
   async function handleSignUp() {
+    setErrorMessage("");
+
     if (!passwordValid) {
-      alert("Your password does not meet all the requirements.");
+      setErrorMessage("Your password does not meet all the requirements.");
       return;
     }
 
     if (!agreed) {
-      alert("You must agree to the UniSeV Terms and Conditions to create an account.");
+      setErrorMessage("You must agree to the UniSeV Terms and Conditions to create an account.");
       return;
     }
 
@@ -123,12 +126,12 @@ export default function AuthPage() {
       });
 
       if (error) {
-        alert(error.message);
+        setErrorMessage(error.message);
         return;
       }
 
       if (!data.user) {
-        alert("Could not create account");
+        setErrorMessage("Could not create account");
         return;
       }
 
@@ -138,17 +141,20 @@ export default function AuthPage() {
         return;
       }
 
-      // Session exists (confirmation off): send NEW users to onboarding
-      router.push("/onboarding");
+      // Session exists (confirmation off): send NEW users to onboarding.
+      // replace() (not push) so the Back button doesn't return to sign in.
+      router.replace("/onboarding");
 
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Something went wrong");
+      setErrorMessage(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
   }
 
   async function handleLogin() {
+    setErrorMessage("");
+
     try {
       setLoading(true);
 
@@ -158,12 +164,13 @@ export default function AuthPage() {
       });
 
       if (error) {
-        alert(error.message);
+        setErrorMessage(error.message);
         return;
       }
 
       // Users who have not finished their profile (name + client/student)
       // go to onboarding first. If the check fails, fall back to the dashboard.
+      // replace() (not push) so the Back button doesn't return to sign in.
       try {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -172,17 +179,17 @@ export default function AuthPage() {
           .maybeSingle();
 
         if (!profileError && (!profile || !profile.role)) {
-          router.push("/onboarding");
+          router.replace("/onboarding");
           return;
         }
       } catch {
         // ignore and continue to dashboard
       }
 
-      router.push("/dashboard");
+      router.replace("/dashboard");
 
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Something went wrong");
+      setErrorMessage(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -246,6 +253,7 @@ export default function AuthPage() {
               setMode("login");
               setPassword("");
               setShowPassword(false);
+              setErrorMessage("");
               setNotice("After confirming your email, log in below.");
             }}
             className="w-full text-blue-600 text-sm"
@@ -368,6 +376,15 @@ export default function AuthPage() {
           </>
         )}
 
+        {errorMessage && (
+          <p
+            role="alert"
+            className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3"
+          >
+            {errorMessage}
+          </p>
+        )}
+
         <button
           onClick={mode==="signup" ? handleSignUp : handleLogin}
           disabled={loading}
@@ -384,6 +401,7 @@ export default function AuthPage() {
           onClick={() => {
             setMode(mode==="signup" ? "login":"signup");
             setShowPassword(false);
+            setErrorMessage("");
           }}
           className="w-full text-blue-600 text-sm"
         >

@@ -84,6 +84,13 @@ type WalletTransactionRow = {
     created_at: string;
 };
 
+// A message shown in an in-page dialog (replaces the old alert() popups)
+type NoticeState = {
+    type: "success" | "error";
+    title: string;
+    message: string;
+};
+
 export default function ClientDashboard() {
     const router = useRouter();
 
@@ -105,7 +112,19 @@ export default function ClientDashboard() {
     });
 
     const [files, setFiles] = useState<File[]>([]);
-    const [activePage, setActivePage] = useState("dashboard");
+
+    // The page shown inside the dashboard. Changing it also adds a
+    // browser-history entry (see setActivePage below), so the phone's
+    // Back button goes to the previous dashboard page instead of
+    // leaving the app.
+    const [activePage, setActivePageState] = useState("dashboard");
+
+    function setActivePage(page: string) {
+        if (page === activePage) return;
+
+        window.history.pushState({ page }, "");
+        setActivePageState(page);
+    }
 
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
@@ -121,6 +140,11 @@ export default function ClientDashboard() {
     // on "Post Task" / "Create Multi Task"). Set true immediately when a
     // create request starts, cleared in a `finally` once it settles.
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // In-page message dialog (replaces alert()). It lives in this
+    // component, so it stays on screen even when the page switches
+    // (for example after a task is created).
+    const [notice, setNotice] = useState<NoticeState | null>(null);
 
     // Recent Activity feed for the dashboard. Merged from
     // `applications` (on this client's tasks) and `wallet_transactions`
@@ -193,11 +217,19 @@ export default function ClientDashboard() {
                 error
             );
 
-            alert(error.message);
+            setNotice({
+                type: "error",
+                title: "Could not save profile",
+                message: error.message,
+            });
             return;
         }
 
-        alert("Profile Updated");
+        setNotice({
+            type: "success",
+            title: "Profile updated",
+            message: "Your profile has been saved.",
+        });
 
         await getProfile();
     }
@@ -504,11 +536,19 @@ export default function ClientDashboard() {
                     });
 
             if (error) {
-                alert(error.message);
+                setNotice({
+                    type: "error",
+                    title: "Could not create task",
+                    message: error.message,
+                });
                 return;
             }
 
-            alert("Task created");
+            setNotice({
+                type: "success",
+                title: "Task created",
+                message: "Your task has been posted.",
+            });
 
             setTitle("");
             setDescription("");
@@ -558,9 +598,12 @@ export default function ClientDashboard() {
                 !Number.isInteger(duration) ||
                 duration < 1
             ) {
-                alert(
-                    "Please enter valid participants, amount, and duration."
-                );
+                setNotice({
+                    type: "error",
+                    title: "Check your details",
+                    message:
+                        "Please enter valid participants, amount, and duration.",
+                });
                 return false;
             }
 
@@ -615,11 +658,19 @@ export default function ClientDashboard() {
                     });
 
             if (error) {
-                alert(error.message);
+                setNotice({
+                    type: "error",
+                    title: "Could not create task",
+                    message: error.message,
+                });
                 return false;
             }
 
-            alert("Multi Task created");
+            setNotice({
+                type: "success",
+                title: "Multi Task created",
+                message: "Your multi task has been posted.",
+            });
 
             await getTasks();
             await getRecentActivity();
@@ -675,6 +726,20 @@ export default function ClientDashboard() {
         getTasks();
         getRecentActivity();
     }, [getProfile]);
+
+    // Phone / browser Back button: show the dashboard page that was open
+    // before. The first entry has no saved page, so it means "dashboard".
+    useEffect(() => {
+        function handlePopState(event: PopStateEvent) {
+            setActivePageState(event.state?.page ?? "dashboard");
+            setSidebarOpen(false);
+        }
+
+        window.addEventListener("popstate", handlePopState);
+
+        return () =>
+            window.removeEventListener("popstate", handlePopState);
+    }, []);
 
     // Refresh the feed whenever the overview is shown again, so a deposit
     // or withdrawal made on the Wallet page appears straight away.
@@ -1129,6 +1194,85 @@ export default function ClientDashboard() {
                 </section>
 
             </div>
+
+
+            {/* MESSAGE DIALOG (replaces the old alert() popups) */}
+
+            {notice && (
+                <div
+                    className="
+                        fixed
+                        inset-0
+                        z-60
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/50
+                        backdrop-blur-sm
+                        p-4
+                    "
+                    onClick={() => setNotice(null)}
+                >
+
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="
+                            w-full
+                            max-w-md
+                            bg-white
+                            rounded-2xl
+                            shadow-2xl
+                            p-5
+                            sm:p-7
+                        "
+                        onClick={(e) => e.stopPropagation()}
+                    >
+
+                        <h3
+                            className={`
+                                text-lg
+                                sm:text-xl
+                                font-bold
+                                ${
+                                    notice.type === "success"
+                                        ? "text-green-700"
+                                        : "text-red-600"
+                                }
+                            `}
+                        >
+                            {notice.title}
+                        </h3>
+
+                        <p className="mt-4 text-sm sm:text-base text-gray-600">
+                            {notice.message}
+                        </p>
+
+                        <div className="mt-7 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setNotice(null)}
+                                className="
+                                    w-full
+                                    sm:w-auto
+                                    px-6
+                                    py-2.5
+                                    rounded-xl
+                                    bg-black
+                                    text-white
+                                    font-semibold
+                                    hover:bg-gray-800
+                                    active:bg-gray-800
+                                "
+                            >
+                                OK
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+            )}
 
         </main>
     );

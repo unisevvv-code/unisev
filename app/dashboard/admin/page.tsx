@@ -93,6 +93,12 @@ interface CombinedPayment extends EscrowPayment {
     student_name: string | null;
 }
 
+// Message shown on the Verifications page after approving / rejecting
+interface ActionMessage {
+    type: "success" | "error";
+    text: string;
+}
+
 // ==================================================
 // DISPLAY MAPPERS
 //
@@ -169,8 +175,19 @@ function toDisplayPayment(payment: CombinedPayment) {
 export default function AdminDashboard() {
     const router = useRouter();
 
-    const [activePage, setActivePage] =
+    // The page shown inside the dashboard. Changing it also adds a
+    // browser-history entry (see setActivePage below), so the phone's
+    // Back button goes to the previous dashboard page instead of
+    // leaving the app.
+    const [activePage, setActivePageState] =
         useState("dashboard");
+
+    function setActivePage(page: string) {
+        if (page === activePage) return;
+
+        window.history.pushState({ page }, "");
+        setActivePageState(page);
+    }
 
     // Controls the mobile sidebar drawer. Owned by the page so the
     // single hamburger button (in AdminHeader) can open the drawer
@@ -223,6 +240,10 @@ export default function AdminDashboard() {
 
     const [walletTransactions, setWalletTransactions] =
         useState<EscrowPayment[]>([]);
+
+    // Replaces the old alert() popups for approve / reject
+    const [actionMessage, setActionMessage] =
+        useState<ActionMessage | null>(null);
 
     // ==================================================
     // LOAD ADMIN OVERVIEW
@@ -905,8 +926,10 @@ export default function AdminDashboard() {
         const { data: userData } =
             await supabase.auth.getUser();
 
+        // `replace` (not `push`) so these redirects don't leave an
+        // extra entry behind that Back would return to.
         if (!userData.user) {
-            router.push("/auth");
+            router.replace("/auth");
             return;
         }
 
@@ -920,7 +943,7 @@ export default function AdminDashboard() {
         console.log("Admin Profile:", data);
 
         if (error || data?.role !== "admin") {
-            router.push("/dashboard/student");
+            router.replace("/dashboard/student");
             return;
         }
 
@@ -954,10 +977,37 @@ export default function AdminDashboard() {
         checkAdmin();
     }, [checkAdmin]);
 
+    // Phone / browser Back button: show the dashboard page that was open
+    // before. The first entry has no saved page, so it means "dashboard".
+    useEffect(() => {
+        function handlePopState(event: PopStateEvent) {
+            setActivePageState(event.state?.page ?? "dashboard");
+            setSidebarOpen(false);
+        }
+
+        window.addEventListener("popstate", handlePopState);
+
+        return () =>
+            window.removeEventListener("popstate", handlePopState);
+    }, []);
+
+    // Hide the approve / reject message after a few seconds
+    useEffect(() => {
+        if (!actionMessage) return;
+
+        const timer = setTimeout(() => {
+            setActionMessage(null);
+        }, 6000);
+
+        return () => clearTimeout(timer);
+    }, [actionMessage]);
+
     async function approveStudent(
         id: string,
         userId: string
     ) {
+        setActionMessage(null);
+
         const {
             error: verificationError,
         } = await supabase
@@ -973,10 +1023,12 @@ export default function AdminDashboard() {
                 verificationError
             );
 
-            alert(
-                "Could not approve verification: " +
-                    verificationError.message
-            );
+            setActionMessage({
+                type: "error",
+                text:
+                    "Could not approve verification: " +
+                    verificationError.message,
+            });
 
             return;
         }
@@ -997,17 +1049,20 @@ export default function AdminDashboard() {
                 profileError
             );
 
-            alert(
-                "Could not update student profile: " +
-                    profileError.message
-            );
+            setActionMessage({
+                type: "error",
+                text:
+                    "Could not update student profile: " +
+                    profileError.message,
+            });
 
             return;
         }
 
-        alert(
-            "Student approved successfully"
-        );
+        setActionMessage({
+            type: "success",
+            text: "Student approved successfully",
+        });
 
         await loadStudents();
         await loadOverview();
@@ -1022,6 +1077,8 @@ export default function AdminDashboard() {
         id: string,
         userId: string
     ) {
+        setActionMessage(null);
+
         const {
             error: verificationError,
         } = await supabase
@@ -1032,9 +1089,10 @@ export default function AdminDashboard() {
             .eq("id", id);
 
         if (verificationError) {
-            alert(
-                verificationError.message
-            );
+            setActionMessage({
+                type: "error",
+                text: verificationError.message,
+            });
 
             return;
         }
@@ -1050,16 +1108,18 @@ export default function AdminDashboard() {
             .eq("id", userId);
 
         if (profileError) {
-            alert(
-                profileError.message
-            );
+            setActionMessage({
+                type: "error",
+                text: profileError.message,
+            });
 
             return;
         }
 
-        alert(
-            "Student verification rejected"
-        );
+        setActionMessage({
+            type: "success",
+            text: "Student verification rejected",
+        });
 
         await loadStudents();
         await loadOverview();
@@ -1135,6 +1195,25 @@ export default function AdminDashboard() {
             case "verifications":
                 return (
                     <div className="space-y-5">
+
+                        {actionMessage && (
+                            <div
+                                role="status"
+                                className={`
+                                    rounded-xl
+                                    border
+                                    p-4
+                                    text-sm
+                                    ${
+                                        actionMessage.type === "success"
+                                            ? "bg-green-50 border-green-200 text-green-800"
+                                            : "bg-red-50 border-red-200 text-red-700"
+                                    }
+                                `}
+                            >
+                                {actionMessage.text}
+                            </div>
+                        )}
 
                         {students.length === 0 ? (
                             <div className="bg-white border rounded-2xl p-8">

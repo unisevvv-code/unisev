@@ -52,10 +52,13 @@ interface NoticeState {
 
 interface MyTasksProps {
     tasks: Task[];
+    // Optional: lets the parent reload its task list after a cancellation
+    onTaskCancelled?: (taskId: string) => void;
 }
 
 export default function MyTasks({
     tasks,
+    onTaskCancelled,
 }: MyTasksProps) {
 
     const [acceptedPrices, setAcceptedPrices] =
@@ -88,6 +91,18 @@ export default function MyTasks({
     // In-page message dialog (replaces alert())
     const [notice, setNotice] =
         useState<NoticeState | null>(null);
+
+    // Task cancellation
+    const [cancelPopupId, setCancelPopupId] =
+        useState<string | null>(null);
+
+    const [cancellingTaskId, setCancellingTaskId] =
+        useState<string | null>(null);
+
+    // Tasks cancelled in this session, so the button disappears and the
+    // status updates immediately, before the parent reloads its tasks
+    const [cancelledIds, setCancelledIds] =
+        useState<Record<string, boolean>>({});
 
     // Rated (task, student) pairs — keyed by `${task_id}_${student_id}`
     // rather than just task_id, so rating one student on a multi task
@@ -684,6 +699,85 @@ export default function MyTasks({
     }
 
 
+    // =========================================================
+    // CLIENT CANCELS A TASK (open / pending only)
+    // =========================================================
+
+    async function cancelTask(taskId: string) {
+
+        setCancellingTaskId(taskId);
+
+        try {
+
+            const { error } =
+                await supabase.rpc(
+                    "cancel_task",
+                    { p_task_id: taskId }
+                );
+
+            if (error) {
+
+                console.log(
+                    "CANCEL TASK ERROR:",
+                    error
+                );
+
+                setCancelPopupId(null);
+
+                setNotice({
+                    type: "error",
+                    title: "Could not cancel task",
+                    lines: [
+                        error.message.replace(
+                            /^[A-Z_]+:\s*/,
+                            ""
+                        ) ||
+                        "Could not cancel the task.",
+                    ],
+                });
+
+                return;
+            }
+
+            setCancelledIds((previous) => ({
+                ...previous,
+                [taskId]: true,
+            }));
+
+            setCancelPopupId(null);
+
+            onTaskCancelled?.(taskId);
+
+            setNotice({
+                type: "success",
+                title: "Task cancelled",
+                lines: ["Your task has been cancelled."],
+            });
+
+        } catch (error) {
+
+            console.log(
+                "UNEXPECTED CANCEL ERROR:",
+                error
+            );
+
+            setCancelPopupId(null);
+
+            setNotice({
+                type: "error",
+                title: "Something went wrong",
+                lines: [
+                    "Something went wrong while cancelling the task.",
+                ],
+            });
+
+        } finally {
+
+            setCancellingTaskId(null);
+        }
+    }
+
+
     return (
         <div className="w-full">
 
@@ -838,9 +932,14 @@ export default function MyTasks({
                                     task.category || ""
                                 );
 
+                            // A task cancelled in this session shows as
+                            // cancelled immediately, before the parent
+                            // reloads its tasks.
                             const status =
-                                task.status
-                                    ?.toLowerCase();
+                                cancelledIds[task.id]
+                                    ? "cancelled"
+                                    : task.status
+                                          ?.toLowerCase();
 
                             const isAssigned =
                                 status ===
@@ -880,6 +979,14 @@ export default function MyTasks({
                                 maxParticipants !== null &&
                                 joinedCount >=
                                     maxParticipants;
+
+                            // Only open / pending tasks that nobody is
+                            // working on can be cancelled. Once the status
+                            // changes, this turns false and the button goes.
+                            const canCancel =
+                                (status === "open" ||
+                                    status === "pending") &&
+                                applications.length === 0;
 
                             return (
 
@@ -1130,8 +1237,10 @@ export default function MyTasks({
                                                                 sm:py-1
                                                                 sm:text-[11px]
                                                             ">
-                                                                {task.status ||
-                                                                    "Unknown"}
+                                                                {status
+                                                                    ? status.charAt(0).toUpperCase() +
+                                                                      status.slice(1)
+                                                                    : "Unknown"}
                                                             </span>
                                                         )}
 
@@ -1312,8 +1421,10 @@ export default function MyTasks({
                                                         font-semibold
                                                         text-slate-500
                                                     ">
-                                                        {task.status ||
-                                                            "Unknown"}
+                                                        {status
+                                                            ? status.charAt(0).toUpperCase() +
+                                                              status.slice(1)
+                                                            : "Unknown"}
                                                     </p>
                                                 )}
 
@@ -2095,6 +2206,50 @@ export default function MyTasks({
                                                 </div>
                                             )}
 
+
+                                            {/* ================================================= */}
+                                            {/* CANCEL TASK (open / pending only) */}
+                                            {/* ================================================= */}
+
+                                            {canCancel && (
+
+                                                <div className="
+                                                    mt-6
+                                                    flex
+                                                    justify-end
+                                                    border-t
+                                                    border-slate-200
+                                                    pt-4
+                                                ">
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setCancelPopupId(task.id);
+                                                        }}
+                                                        className="
+                                                            w-full
+                                                            rounded-xl
+                                                            border
+                                                            border-red-200
+                                                            bg-white
+                                                            px-5
+                                                            py-2.5
+                                                            font-semibold
+                                                            text-red-600
+                                                            transition
+                                                            hover:bg-red-50
+                                                            sm:w-auto
+                                                        "
+                                                    >
+                                                        Cancel Task
+                                                    </button>
+
+                                                </div>
+                                            )}
+
                                         </div>
 
                                     </div>
@@ -2548,6 +2703,163 @@ export default function MyTasks({
                                 {submittingRating
                                     ? "Submitting..."
                                     : "Submit Rating"}
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            )}
+
+
+            {/* ===================================================== */}
+            {/* CANCEL TASK CONFIRMATION POPUP */}
+            {/* ===================================================== */}
+
+            {cancelPopupId && (
+
+                <div
+                    className="
+                        fixed
+                        inset-0
+                        z-50
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/40
+                        p-4
+                        backdrop-blur-sm
+                    "
+                    onClick={() => {
+                        if (!cancellingTaskId) {
+                            setCancelPopupId(null);
+                        }
+                    }}
+                >
+
+                    <div
+                        className="
+                            w-full
+                            max-w-md
+                            rounded-2xl
+                            border
+                            border-slate-100
+                            bg-white
+                            p-5
+                            shadow-2xl
+                            sm:p-7
+                        "
+                        onClick={(e) =>
+                            e.stopPropagation()
+                        }
+                    >
+
+                        <div className="
+                            mb-5
+                            flex
+                            h-12
+                            w-12
+                            items-center
+                            justify-center
+                            rounded-xl
+                            bg-red-50
+                            text-xl
+                        ">
+                            🚫
+                        </div>
+
+                        <h3 className="
+                            text-lg
+                            font-bold
+                            text-slate-900
+                            sm:text-xl
+                        ">
+                            Cancel this task?
+                        </h3>
+
+                        <p className="
+                            mt-3
+                            text-sm
+                            leading-6
+                            text-slate-500
+                        ">
+                            &quot;
+                            {
+                                tasks.find(
+                                    (t) =>
+                                        t.id ===
+                                        cancelPopupId
+                                )?.title
+                            }
+                            &quot; will be closed and
+                            students will no longer see it.
+                            This can&apos;t be undone.
+                        </p>
+
+                        <div className="
+                            mt-7
+                            flex
+                            flex-col-reverse
+                            items-stretch
+                            gap-3
+                            sm:flex-row
+                            sm:items-center
+                            sm:justify-between
+                        ">
+
+                            <button
+                                type="button"
+                                disabled={
+                                    cancellingTaskId ===
+                                    cancelPopupId
+                                }
+                                onClick={() =>
+                                    setCancelPopupId(null)
+                                }
+                                className="
+                                    rounded-xl
+                                    border
+                                    border-slate-300
+                                    px-5
+                                    py-2.5
+                                    font-medium
+                                    text-slate-600
+                                    transition
+                                    hover:bg-slate-50
+                                    disabled:opacity-50
+                                "
+                            >
+                                Keep Task
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={
+                                    cancellingTaskId ===
+                                    cancelPopupId
+                                }
+                                onClick={() =>
+                                    cancelTask(
+                                        cancelPopupId
+                                    )
+                                }
+                                className="
+                                    rounded-xl
+                                    bg-red-500
+                                    px-5
+                                    py-2.5
+                                    font-semibold
+                                    text-white
+                                    transition
+                                    hover:bg-red-600
+                                    disabled:opacity-50
+                                "
+                            >
+                                {cancellingTaskId ===
+                                    cancelPopupId
+                                    ? "Cancelling..."
+                                    : "Yes, Cancel Task"}
                             </button>
 
                         </div>

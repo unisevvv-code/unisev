@@ -91,7 +91,10 @@ interface ApplicationActivityRow {
     id: string;
     status: string;
     created_at: string;
-    tasks: { title: string } | { title: string }[] | null;
+    tasks:
+        | { title: string; status?: string | null }
+        | { title: string; status?: string | null }[]
+        | null;
 }
 
 interface WalletTransactionRow {
@@ -288,11 +291,17 @@ export default function StudentDashboard() {
     }, []);
 
     // Refetch open tasks whenever the Browse Tasks tab is opened, so a
-    // task that just got assigned to someone else disappears without
-    // needing a full page reload.
+    // task that just got assigned to someone else (or cancelled by its
+    // client) disappears without needing a full page reload.
     useEffect(() => {
         if (activePage === "browse") {
             getTasks();
+        }
+
+        // Same for My Tasks, so tasks the client cancelled drop out
+        // of the list when the student opens it
+        if (activePage === "mytasks") {
+            getMyTasks();
         }
 
         // Refresh the feed whenever the overview is shown again
@@ -630,6 +639,9 @@ export default function StudentDashboard() {
 
     // ==========================================
     // GET OPEN TASKS
+    //
+    // Only tasks with status "open" are loaded, so cancelled tasks
+    // never appear in Browse Tasks.
     // ==========================================
 
     async function getTasks() {
@@ -658,6 +670,8 @@ export default function StudentDashboard() {
 
     // ==========================================
     // GET MY APPLICATIONS / TASKS
+    //
+    // Applications on tasks the client has cancelled are left out.
     // ==========================================
 
     async function getMyTasks() {
@@ -697,7 +711,14 @@ export default function StudentDashboard() {
             return;
         }
 
-        setMyTasks((data as unknown as Application[]) || []);
+        const activeApplications = (
+            (data as unknown as Application[]) || []
+        ).filter(
+            (application) =>
+                application.tasks?.status !== "cancelled"
+        );
+
+        setMyTasks(activeApplications);
     }
 
     // ==========================================
@@ -971,7 +992,8 @@ export default function StudentDashboard() {
 
         // ------------------------------------------
         // Task events: applied, accepted, declined,
-        // completed (from this student's applications)
+        // completed (from this student's applications).
+        // Applications on cancelled tasks are left out.
         // ------------------------------------------
 
         const {
@@ -979,7 +1001,7 @@ export default function StudentDashboard() {
             error: applicationError,
         } = await supabase
             .from("applications")
-            .select("id, status, created_at, tasks(title)")
+            .select("id, status, created_at, tasks(title, status)")
             .eq("student_id", userId)
             .order("created_at", { ascending: false })
             .limit(10);
@@ -994,7 +1016,15 @@ export default function StudentDashboard() {
         } else {
             taskItems = (
                 (applicationData as unknown as ApplicationActivityRow[]) || []
-            ).map((application): ActivityItem => {
+            )
+                .filter((application) => {
+                    const task = Array.isArray(application.tasks)
+                        ? application.tasks[0]
+                        : application.tasks;
+
+                    return task?.status !== "cancelled";
+                })
+                .map((application): ActivityItem => {
                 const task = Array.isArray(application.tasks)
                     ? application.tasks[0]
                     : application.tasks;
@@ -1059,6 +1089,10 @@ export default function StudentDashboard() {
 
     // ==========================================
     // APPLY FOR TASK
+    //
+    // Checks the task is still open first, so a student on a stale
+    // Browse Tasks page can't apply to a task the client has since
+    // cancelled (or that was assigned to someone else).
     // ==========================================
 
     async function applyTask(
@@ -1071,6 +1105,25 @@ export default function StudentDashboard() {
             await supabase.auth.getUser();
 
         if (!userData.user) return;
+
+        const { data: taskData, error: taskError } =
+            await supabase
+                .from("tasks")
+                .select("status")
+                .eq("id", taskId)
+                .single();
+
+        if (taskError || !taskData) {
+            alert("This task could not be found.");
+            await getTasks();
+            return;
+        }
+
+        if (taskData.status !== "open") {
+            alert("This task is no longer available.");
+            await getTasks();
+            return;
+        }
 
         const { error } =
             await supabase
@@ -1091,7 +1144,14 @@ export default function StudentDashboard() {
                 });
 
         if (error) {
-            alert(error.message);
+            alert(
+                error.message.replace(/^[A-Z_]+:\s*/, "")
+            );
+
+            if (error.message.startsWith("TASK_CANCELLED")) {
+                await getTasks();
+            }
+
             return;
         }
 

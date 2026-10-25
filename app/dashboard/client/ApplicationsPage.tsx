@@ -27,6 +27,7 @@ interface ApplicationTask {
     category: string | null;
     recommended_price: number | null;
     client_id: string;
+    status: string | null;
 }
 
 interface Application {
@@ -157,6 +158,9 @@ export default function ApplicationsPage({
 
     // =========================================================
     // LOAD ALL APPLICATIONS ACROSS ALL OF THE CLIENT'S TASKS
+    //
+    // Applications on cancelled tasks are left out entirely, so
+    // they don't appear in any tab (not even "Rejected").
     // =========================================================
 
     async function loadApplications() {
@@ -187,7 +191,8 @@ export default function ApplicationsPage({
                     title,
                     category,
                     recommended_price,
-                    client_id
+                    client_id,
+                    status
                 ),
                 profiles!applications_student_id_fkey(
                     id,
@@ -208,7 +213,14 @@ export default function ApplicationsPage({
             return;
         }
 
-        setApplications((data as unknown as Application[]) || []);
+        const activeApplications = (
+            (data as unknown as Application[]) || []
+        ).filter(
+            (application) =>
+                application.tasks?.status !== "cancelled"
+        );
+
+        setApplications(activeApplications);
         setLoading(false);
     }
 

@@ -825,6 +825,13 @@ export default function ClientDashboard() {
                 return (
                     <MyTasks
                         tasks={tasks}
+                        onTaskCancelled={() => {
+                            // Reload the task list (and the open
+                            // application count that follows from it)
+                            // so the cancelled task's status is current.
+                            getTasks();
+                            getRecentActivity();
+                        }}
                     />
                 );
 

@@ -24,18 +24,38 @@ type Task = {
   max_participants?: number | null;
 };
 
+// What applyTask can report back, so this page can show the message
+// in the page itself (instead of a browser alert popup).
+export type ApplyResult = {
+  status: "applied" | "already_applied" | "error";
+  message?: string;
+};
+
 interface BrowseTasksProps {
   tasks: Task[];
   askingPrices: Record<string, string>;
   setAskingPrices: React.Dispatch<
     React.SetStateAction<Record<string, string>>
   >;
-  applyTask: (taskId: string, askingPrice?: string) => void;
+  applyTask: (
+    taskId: string,
+    askingPrice?: string
+  ) => void | ApplyResult | Promise<void | ApplyResult>;
+
+  // Optional: ids of tasks this student has already applied for
+  // (from the database), so "Applied" shows even after a reload.
+  appliedTaskIds?: string[];
 }
 
 type SortOption = "newest" | "oldest" | "highest";
 
 type TaskTypeFilter = "all" | "multi" | "single";
+
+type NoticeState = {
+  type: "success" | "error" | "info";
+  title: string;
+  message: string;
+};
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "newest", label: "Sort by: Newest" },
@@ -48,6 +68,7 @@ export default function BrowseTasks({
   askingPrices,
   setAskingPrices,
   applyTask,
+  appliedTaskIds,
 }: BrowseTasksProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -56,6 +77,99 @@ export default function BrowseTasks({
     useState<TaskTypeFilter>("all");
   const [showCategoryMenu, setShowCategoryMenu] =
     useState(false);
+
+  // Tasks applied for during this visit
+  const [locallyApplied, setLocallyApplied] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Task currently being applied for (blocks double clicks)
+  const [applyingId, setApplyingId] = useState<string | null>(
+    null
+  );
+
+  // In-page message dialog (replaces alert())
+  const [notice, setNotice] = useState<NoticeState | null>(
+    null
+  );
+
+  function isApplied(taskId: string) {
+    return (
+      !!locallyApplied[taskId] ||
+      !!appliedTaskIds?.includes(taskId)
+    );
+  }
+
+  function markApplied(taskId: string) {
+    setLocallyApplied((previous) => ({
+      ...previous,
+      [taskId]: true,
+    }));
+  }
+
+  async function handleApply(task: Task, isMulti: boolean) {
+    if (applyingId) return;
+
+    // Second click on a task that was already applied for
+    if (isApplied(task.id)) {
+      setNotice({
+        type: "info",
+        title: "Already applied",
+        message: "You have already applied for this task.",
+      });
+      return;
+    }
+
+    setApplyingId(task.id);
+
+    try {
+      const result = isMulti
+        ? await applyTask(task.id)
+        : await applyTask(task.id, askingPrices[task.id]);
+
+      if (result && typeof result === "object") {
+        if (result.status === "applied") {
+          markApplied(task.id);
+
+          setNotice({
+            type: "success",
+            title: "Application sent",
+            message:
+              result.message ||
+              "Your application has been submitted.",
+          });
+        } else if (result.status === "already_applied") {
+          markApplied(task.id);
+
+          setNotice({
+            type: "info",
+            title: "Already applied",
+            message:
+              result.message ||
+              "You have already applied for this task.",
+          });
+        } else if (result.status === "error") {
+          setNotice({
+            type: "error",
+            title: "Could not apply",
+            message:
+              result.message ||
+              "Something went wrong. Please try again.",
+          });
+        }
+      }
+    } catch (error) {
+      console.log("APPLY TASK ERROR:", error);
+
+      setNotice({
+        type: "error",
+        title: "Could not apply",
+        message: "Something went wrong. Please try again.",
+      });
+    } finally {
+      setApplyingId(null);
+    }
+  }
 
   const getCategoryIcon = (category: string) => {
     const value = category?.toLowerCase() || "";
@@ -568,6 +682,9 @@ export default function BrowseTasks({
             const maxSlots = Number(task.max_participants || 0);
             const isFull = isMulti && maxSlots > 0 && filledSlots >= maxSlots;
 
+            const applied = isApplied(task.id);
+            const applying = applyingId === task.id;
+
             return (
               <details
                 key={task.id}
@@ -950,43 +1067,42 @@ export default function BrowseTasks({
 
                       <button
                         type="button"
-                        disabled={isFull}
+                        disabled={(isFull && !applied) || applying}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
 
-                          if (isMulti) {
-                            applyTask(task.id);
-                          } else {
-                            applyTask(
-                              task.id,
-                              askingPrices[task.id]
-                            );
-                          }
+                          handleApply(task, isMulti);
                         }}
-                        className="
+                        className={`
                           h-10
                           flex-1
                           min-w-23.5
                           rounded-xl
-                          bg-blue-600
                           px-5
                           text-[14px]
                           font-semibold
-                          text-white
                           shadow-sm
                           transition-all
-                          hover:bg-blue-700
-                          hover:shadow-md
                           active:scale-[0.98]
                           disabled:opacity-50
                           disabled:cursor-not-allowed
-                          disabled:hover:bg-blue-600
                           disabled:active:scale-100
                           sm:flex-none
-                        "
+                          ${
+                            applied
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                              : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md disabled:hover:bg-blue-600"
+                          }
+                        `}
                       >
-                        {isFull ? "Full" : "Apply"}
+                        {applying
+                          ? "Applying..."
+                          : applied
+                          ? "Applied ✓"
+                          : isFull
+                          ? "Full"
+                          : "Apply"}
                       </button>
 
                       {/* EXPAND ICON */}
@@ -1079,6 +1195,86 @@ export default function BrowseTasks({
               </details>
             );
           })}
+
+        </div>
+      )}
+
+
+      {/* MESSAGE DIALOG (replaces the old alert() popups) */}
+      {notice && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-60
+            flex
+            items-center
+            justify-center
+            bg-black/50
+            p-4
+            backdrop-blur-sm
+          "
+          onClick={() => setNotice(null)}
+        >
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="
+              w-full
+              max-w-md
+              rounded-2xl
+              bg-white
+              p-5
+              shadow-2xl
+              sm:p-7
+            "
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <h3
+              className={`
+                text-lg
+                font-bold
+                sm:text-xl
+                ${
+                  notice.type === "success"
+                    ? "text-emerald-600"
+                    : notice.type === "error"
+                    ? "text-red-600"
+                    : "text-blue-600"
+                }
+              `}
+            >
+              {notice.title}
+            </h3>
+
+            <p className="mt-4 text-sm text-slate-600 sm:text-[15px]">
+              {notice.message}
+            </p>
+
+            <div className="mt-7 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                className="
+                  w-full
+                  rounded-xl
+                  bg-slate-900
+                  px-6
+                  py-2.5
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-slate-800
+                  sm:w-auto
+                "
+              >
+                OK
+              </button>
+            </div>
+
+          </div>
 
         </div>
       )}

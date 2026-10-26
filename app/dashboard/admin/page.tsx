@@ -737,6 +737,8 @@ export default function AdminDashboard() {
 
     // ==================================================
     // LOAD TASKS (for the Tasks tab)
+    //
+    // Cancelled tasks are left out of the admin list.
     // ==================================================
 
     const loadTasksList = useCallback(async () => {
@@ -746,6 +748,7 @@ export default function AdminDashboard() {
         } = await supabase
             .from("tasks")
             .select("*")
+            .or("status.is.null,status.neq.cancelled")
             .order("created_at", {
                 ascending: false,
             });

@@ -187,11 +187,14 @@ export default function AdminTasks({
     }
 
     // ---------------------------------------------
-    // BASE LIST — everything except closed tasks
+    // BASE LIST — everything except closed and
+    // cancelled tasks
     // ---------------------------------------------
 
     const baseTasks = tasks.filter(
-        (task) => task.status !== "closed"
+        (task) =>
+            task.status !== "closed" &&
+            task.status !== "cancelled"
     );
 
     // ---------------------------------------------

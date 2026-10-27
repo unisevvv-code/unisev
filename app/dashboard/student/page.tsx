@@ -28,7 +28,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import BrowseTasks, { type ApplyResult } from "./components/BrowseTasks";
 import MyTasks from "./components/MyTasks";
-import Profile, { type SaveProfileResult } from "./components/Profile";
+import Profile from "./components/Profile";
 import MessagesPage from "./components/MessagesPage";
 import Wallet from "./components/Wallet";
 import StudentProfilePreview from "./components/StudentProfilePreview";
@@ -37,6 +37,14 @@ import { getGreeting } from "@/lib/greeting";
 
 // Official UniSeV support address (used by the Contact Support quick action)
 const SUPPORT_EMAIL = "unisevvv@gmail.com";
+
+// A message shown in an in-page dialog (replaces the old alert() popups,
+// which display the site address, e.g. "xyz.vercel.app says")
+type NoticeState = {
+    type: "success" | "error";
+    title: string;
+    message: string;
+};
 
 // ==========================================
 // TYPES
@@ -273,6 +281,9 @@ export default function StudentDashboard() {
     const [showRatingsPopup, setShowRatingsPopup] =
         useState(false);
 
+    // In-page message dialog
+    const [notice, setNotice] = useState<NoticeState | null>(null);
+
     // "Copied" feedback for the Contact Support quick action
     const [supportEmailCopied, setSupportEmailCopied] =
         useState(false);
@@ -462,25 +473,30 @@ export default function StudentDashboard() {
 
     // ==========================================
     // SAVE PROFILE
-    //
-    // Returns a SaveProfileResult instead of calling alert(), so
-    // the Profile page can show the message in its own in-page
-    // popup (no "unisev.vercel.app says" header).
     // ==========================================
 
-    async function saveProfile(): Promise<SaveProfileResult> {
+    async function saveProfile() {
         const { data: userData } =
             await supabase.auth.getUser();
 
-        if (!userData.user) {
-            return {
-                status: "error",
-                message:
-                    "Please log in again to save your profile.",
-            };
-        }
+        if (!userData.user) return;
 
         let verificationDocument = "";
+
+        console.log(
+            "AUTH USER ID:",
+            userData.user.id
+        );
+
+        console.log(
+            "VERIFICATION USER ID:",
+            userData.user.id
+        );
+
+        console.log(
+            "VERIFICATION DOCUMENT:",
+            verificationDocument
+        );
 
         if (verificationFile) {
             const fileName =
@@ -501,11 +517,13 @@ export default function StudentDashboard() {
                     uploadError
                 );
 
-                return {
-                    status: "error",
-                    message:
-                        uploadError.message,
-                };
+                setNotice({
+                    type: "error",
+                    title: "Upload failed",
+                    message: uploadError.message,
+                });
+
+                return;
             }
 
             const {
@@ -521,6 +539,11 @@ export default function StudentDashboard() {
 
             verificationDocument =
                 publicUrl.publicUrl;
+
+            console.log(
+                "Verification URL:",
+                verificationDocument
+            );
         }
 
         const { error } =
@@ -564,47 +587,65 @@ export default function StudentDashboard() {
                 );
 
         if (error) {
-            console.log(error);
-
-            return {
-                status: "error",
+            setNotice({
+                type: "error",
+                title: "Could not save profile",
                 message: error.message,
-            };
+            });
+            return;
         }
 
         if (verificationFile) {
+            const verificationData = {
+                user_id:
+                    userData.user.id,
+
+                school_name:
+                    profile.university,
+
+                document_url:
+                    verificationDocument,
+
+                status:
+                    "Pending",
+            };
+
+            console.log(
+                "Inserting:",
+                verificationData
+            );
+
             const {
+                data,
                 error: verificationError,
             } =
                 await supabase
                     .from(
                         "student_verifications"
                     )
-                    .insert({
-                        user_id:
-                            userData.user.id,
-
-                        school_name:
-                            profile.university,
-
-                        document_url:
-                            verificationDocument,
-
-                        status:
-                            "Pending",
-                    })
+                    .insert(
+                        verificationData
+                    )
                     .select();
 
-            if (verificationError) {
-                console.log(
-                    verificationError
-                );
+            console.log(
+                "Returned data:",
+                data
+            );
 
-                return {
-                    status: "error",
-                    message:
-                        verificationError.message,
-                };
+            console.log(
+                "Insert error:",
+                verificationError
+            );
+
+            if (verificationError) {
+                setNotice({
+                    type: "error",
+                    title: "Verification failed",
+                    message: verificationError.message,
+                });
+
+                return;
             }
         }
 
@@ -620,11 +661,13 @@ export default function StudentDashboard() {
                     : profile.verification_status,
         });
 
-        return {
-            status: "success",
-            message:
-                "Your profile has been updated successfully.",
-        };
+        setNotice({
+            type: "success",
+            title: "Profile saved",
+            message: verificationFile
+                ? "Your profile has been updated and your ID has been submitted for verification."
+                : "Your profile has been updated successfully.",
+        });
     }
 
     // ==========================================
@@ -1198,7 +1241,11 @@ export default function StudentDashboard() {
                 2000
             );
         } catch {
-            alert(`Support email: ${SUPPORT_EMAIL}`);
+            setNotice({
+                type: "success",
+                title: "Support email",
+                message: SUPPORT_EMAIL,
+            });
         }
     }
 
@@ -1852,6 +1899,46 @@ export default function StudentDashboard() {
                     onClose={() => setShowRatingsPopup(false)}
                     initialShowReviews={true}
                 />
+            )}
+
+            {/* MESSAGE DIALOG (replaces the old alert() popups) */}
+
+            {notice && (
+                <div
+                    className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                    onClick={() => setNotice(null)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-5 sm:p-7"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3
+                            className={`text-lg sm:text-xl font-bold ${
+                                notice.type === "success"
+                                    ? "text-green-700"
+                                    : "text-red-600"
+                            }`}
+                        >
+                            {notice.title}
+                        </h3>
+
+                        <p className="mt-4 text-sm sm:text-base text-gray-600 wrap-break-words">
+                            {notice.message}
+                        </p>
+
+                        <div className="mt-7 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setNotice(null)}
+                                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-800 active:bg-gray-800"
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </main>

@@ -583,7 +583,7 @@ export default function StudentDashboard() {
             );
         }
 
-        const { error } =
+        const { data: updatedRows, error } =
             await supabase
                 .from("profiles")
                 .update({
@@ -625,13 +625,26 @@ export default function StudentDashboard() {
                 .eq(
                     "id",
                     userData.user.id
-                );
+                )
+                .select("id");
 
         if (error) {
             setNotice({
                 type: "error",
                 title: "Could not save profile",
                 message: error.message,
+            });
+            return;
+        }
+
+        // A blocked update (e.g. by a row-level security policy) returns
+        // no error but changes nothing, which looks like a successful save.
+        if (!updatedRows || updatedRows.length === 0) {
+            setNotice({
+                type: "error",
+                title: "Could not save profile",
+                message:
+                    "Nothing was saved. Please try again, or contact support if this keeps happening.",
             });
             return;
         }

@@ -68,6 +68,10 @@ interface PostTaskProps {
 const TITLE_MAX = 100;
 const DESCRIPTION_MAX = 2000;
 
+// A Multi Task needs at least this many participants
+// (for a single student, post a regular single task instead).
+const MIN_PARTICIPANTS = 2;
+
 /**
  * Lucide icons don't accept a `title` prop (their props are
  * Omit<LucideProps, "ref">, which has no `title`), so the native tooltip
@@ -337,6 +341,13 @@ export default function PostTask({
             return;
         }
 
+        if (Number(participants) < MIN_PARTICIPANTS) {
+            setMultiError(
+                `A Multi Task needs at least ${MIN_PARTICIPANTS} participants. For one student, post a single task instead.`
+            );
+            return;
+        }
+
         const created = await createMultiTask({
             title: multiTitle,
             description: multiDescription,
@@ -552,7 +563,9 @@ export default function PostTask({
                                         Number of Participants{" "}
                                         <span className="text-red-500">*</span>
                                     </label>
-                                    <HelpTip text="How many students can complete this task independently?" />
+                                    <HelpTip
+                                        text={`How many students can complete this task independently? Minimum ${MIN_PARTICIPANTS}.`}
+                                    />
                                 </div>
 
                                 <div className="flex items-center border rounded-xl mt-2 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
@@ -562,7 +575,7 @@ export default function PostTask({
 
                                     <input
                                         type="number"
-                                        min="1"
+                                        min={MIN_PARTICIPANTS}
                                         max="10000"
                                         value={participants}
                                         onChange={(e) =>
@@ -571,6 +584,13 @@ export default function PostTask({
                                         className="w-full py-3 pr-3 focus:outline-none"
                                     />
                                 </div>
+
+                                {participants !== "" &&
+                                    Number(participants) < MIN_PARTICIPANTS && (
+                                        <p className="mt-1.5 text-xs text-red-600">
+                                            Minimum {MIN_PARTICIPANTS} participants.
+                                        </p>
+                                    )}
                             </div>
                         </div>
 

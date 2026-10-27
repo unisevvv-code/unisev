@@ -600,7 +600,7 @@ export default function ClientDashboard() {
 
             if (
                 !Number.isInteger(participantCount) ||
-                participantCount < 1 ||
+                participantCount < 2 ||
                 participantCount > 10000 ||
                 !Number.isFinite(reward) ||
                 reward <= 0 ||
@@ -611,7 +611,7 @@ export default function ClientDashboard() {
                     type: "error",
                     title: "Check your details",
                     message:
-                        "Please enter valid participants, amount, and duration.",
+                        "Please enter at least 2 participants, a valid amount, and a valid duration.",
                 });
                 return false;
             }

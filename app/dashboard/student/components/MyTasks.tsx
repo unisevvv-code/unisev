@@ -34,6 +34,14 @@ interface MyTasksProps {
   myTasks: MyTask[];
 }
 
+// In-page notice shown instead of the browser's alert()
+interface Notice {
+  type: "success" | "error";
+  title: string;
+  message: string;
+  reload?: boolean;
+}
+
 export default function MyTasks({
   myTasks,
 }: MyTasksProps) {
@@ -49,6 +57,10 @@ export default function MyTasks({
 
   const [cancellingId, setCancellingId] =
     useState<string | null>(null);
+
+  // Success / error popup (replaces alert())
+  const [notice, setNotice] =
+    useState<Notice | null>(null);
 
   async function requestTaskCompletion(
     applicationId: string
@@ -68,12 +80,17 @@ export default function MyTasks({
         error
       );
 
-      alert(
-        error.message ||
-        "Could not submit this task for completion."
-      );
-
       setCompletingTaskId(null);
+      setConfirmTaskId(null);
+
+      setNotice({
+        type: "error",
+        title: "Submission Failed",
+        message:
+          error.message ||
+          "Could not submit this task for completion.",
+      });
+
       return;
     }
 
@@ -85,11 +102,13 @@ export default function MyTasks({
     setConfirmTaskId(null);
     setCompletingTaskId(null);
 
-    alert(
-      "Work completion submitted.\n\nThe client has been notified to confirm your work."
-    );
-
-    window.location.reload();
+    setNotice({
+      type: "success",
+      title: "Work Submitted",
+      message:
+        "The client has been notified to confirm your work.",
+      reload: true,
+    });
   }
 
   async function cancelApplication(
@@ -110,21 +129,30 @@ export default function MyTasks({
         error
       );
 
-      alert(
-        error.message ||
-        "Could not cancel this task."
-      );
-
       setCancellingId(null);
+      setCancelApplicationId(null);
+
+      setNotice({
+        type: "error",
+        title: "Cancellation Failed",
+        message:
+          error.message ||
+          "Could not cancel this task.",
+      });
+
       return;
     }
 
     setCancelApplicationId(null);
     setCancellingId(null);
 
-    alert("Task cancelled successfully.");
-
-    window.location.reload();
+    setNotice({
+      type: "success",
+      title: "Task Cancellation Successful",
+      message:
+        "Your application has been withdrawn and the task has been removed from My Tasks.",
+      reload: true,
+    });
   }
 
   const getCategoryIcon = (category: string) => {
@@ -1444,6 +1472,93 @@ export default function MyTasks({
           {myTasks.length === 1
             ? "task"
             : "tasks"}
+        </div>
+      )}
+
+      {/* NOTICE POPUP (replaces browser alert) */}
+      {notice && (
+        <div className="
+          fixed
+          inset-0
+          z-60
+          flex
+          items-center
+          justify-center
+          bg-black/40
+          p-4
+          backdrop-blur-sm
+        ">
+
+          <div className="
+            w-full
+            max-w-sm
+            rounded-2xl
+            border
+            border-slate-100
+            bg-white
+            p-6
+            text-center
+            shadow-2xl
+          ">
+
+            <div
+              className={`
+                mx-auto
+                mb-4
+                flex
+                h-12
+                w-12
+                items-center
+                justify-center
+                rounded-full
+                text-xl
+                ${
+                  notice.type === "success"
+                    ? "bg-green-50 text-green-600"
+                    : "bg-red-50 text-red-500"
+                }
+              `}
+            >
+              {notice.type === "success" ? "✓" : "✕"}
+            </div>
+
+            <h3 className="text-lg font-bold text-slate-900">
+              {notice.title}
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              {notice.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                const shouldReload = notice.reload;
+
+                setNotice(null);
+
+                if (shouldReload) {
+                  window.location.reload();
+                }
+              }}
+              className="
+                mt-6
+                w-full
+                rounded-xl
+                bg-blue-400!
+                px-5
+                py-2.5
+                font-semibold
+                text-white!
+                transition
+                hover:bg-blue-500!
+              "
+            >
+              OK
+            </button>
+
+          </div>
+
         </div>
       )}
 

@@ -43,6 +43,13 @@ export default function MyTasks({
   const [completingTaskId, setCompletingTaskId] =
     useState<string | null>(null);
 
+  // Student cancellation (pending applications only)
+  const [cancelApplicationId, setCancelApplicationId] =
+    useState<string | null>(null);
+
+  const [cancellingId, setCancellingId] =
+    useState<string | null>(null);
+
   async function requestTaskCompletion(
     applicationId: string
   ) {
@@ -81,6 +88,41 @@ export default function MyTasks({
     alert(
       "Work completion submitted.\n\nThe client has been notified to confirm your work."
     );
+
+    window.location.reload();
+  }
+
+  async function cancelApplication(
+    applicationId: string
+  ) {
+    setCancellingId(applicationId);
+
+    const { error } = await supabase.rpc(
+      "cancel_application_by_student",
+      {
+        p_application_id: applicationId,
+      }
+    );
+
+    if (error) {
+      console.log(
+        "CANCEL APPLICATION ERROR:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "Could not cancel this task."
+      );
+
+      setCancellingId(null);
+      return;
+    }
+
+    setCancelApplicationId(null);
+    setCancellingId(null);
+
+    alert("Task cancelled successfully.");
 
     window.location.reload();
   }
@@ -265,6 +307,10 @@ export default function MyTasks({
 
             const isCompleted =
               status === "completed";
+
+            // Student can only cancel while the application is pending
+            const isPending =
+              status === "pending";
 
             const isWaitingForClient =
               isAccepted &&
@@ -956,6 +1002,46 @@ export default function MyTasks({
                       </div>
                     )}
 
+                    {/* CANCEL TASK BUTTON (pending only — single and multi tasks) */}
+                    {isPending && (
+                      <div className="
+                        mt-6
+                        flex
+                        justify-end
+                      ">
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            setCancelApplicationId(
+                              item.id
+                            );
+                          }}
+                          className="
+                            w-full
+                            rounded-xl
+                            border
+                            border-red-200
+                            bg-red-50!
+                            px-5
+                            py-2.5
+                            font-semibold
+                            text-red-600!
+                            transition
+                            hover:bg-red-100!
+                            active:scale-[0.98]
+                            sm:w-auto
+                          "
+                        >
+                          Cancel Task
+                        </button>
+
+                      </div>
+                    )}
+
                     {/* TASK COMPLETE BUTTON */}
                     {isAccepted &&
                       !isWaitingForClient && (
@@ -1200,6 +1286,135 @@ export default function MyTasks({
                           confirmTaskId
                             ? "Submitting..."
                             : "Submit for Confirmation"}
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+                )}
+
+                {/* CANCEL TASK CONFIRMATION POPUP */}
+                {cancelApplicationId === item.id && (
+                  <div
+                    className="
+                      fixed
+                      inset-0
+                      z-50
+                      flex
+                      items-end
+                      justify-center
+                      bg-black/40
+                      p-0
+                      backdrop-blur-sm
+                      sm:items-center
+                      sm:p-4
+                    "
+                    onClick={() =>
+                      setCancelApplicationId(null)
+                    }
+                  >
+
+                    <div
+                      className="
+                        w-full
+                        max-w-md
+                        rounded-t-2xl
+                        rounded-b-none
+                        border
+                        border-slate-100
+                        bg-white
+                        p-5
+                        shadow-2xl
+                        sm:rounded-2xl
+                        sm:p-7
+                      "
+                      onClick={(e) =>
+                        e.stopPropagation()
+                      }
+                    >
+
+                      <h3 className="
+                        text-lg
+                        font-bold
+                        text-slate-900
+                        sm:text-xl
+                      ">
+                        Cancel this task?
+                      </h3>
+
+                      <p className="
+                        mt-4
+                        text-[15px]
+                        leading-6
+                        text-slate-600
+                      ">
+                        Your application will be withdrawn
+                        and the task will be removed from
+                        My Tasks.
+                      </p>
+
+                      <div className="
+                        mt-7
+                        flex
+                        flex-col-reverse
+                        gap-3
+                        sm:flex-row
+                        sm:items-center
+                        sm:justify-between
+                      ">
+
+                        {/* KEEP */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCancelApplicationId(null)
+                          }
+                          className="
+                            w-full
+                            rounded-xl
+                            border
+                            border-slate-300
+                            px-5
+                            py-2.5
+                            font-medium
+                            text-slate-600
+                            transition
+                            hover:bg-slate-50
+                            sm:w-auto
+                          "
+                        >
+                          Keep Task
+                        </button>
+
+                        {/* CONFIRM CANCEL */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            cancelApplication(item.id)
+                          }
+                          disabled={
+                            cancellingId === item.id
+                          }
+                          className="
+                            w-full
+                            rounded-xl
+                            bg-red-500!
+                            px-5
+                            py-2.5
+                            font-semibold
+                            text-white!
+                            transition
+                            hover:bg-red-600!
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                            sm:w-auto
+                          "
+                        >
+                          {cancellingId === item.id
+                            ? "Cancelling..."
+                            : "Yes, Cancel Task"}
                         </button>
 
                       </div>

@@ -19,6 +19,9 @@ import {
     ClipboardList,
     XCircle,
     HelpCircle,
+    Mail,
+    Copy,
+    Check,
 } from "lucide-react";
 
 import Header from "./components/Header";
@@ -31,6 +34,9 @@ import Wallet from "./components/Wallet";
 import StudentProfilePreview from "./components/StudentProfilePreview";
 import HowItWorks from "@/components/HowItWorks";
 import { getGreeting } from "@/lib/greeting";
+
+// Official UniSeV support address (used by the Contact Support quick action)
+const SUPPORT_EMAIL = "unisevvv@gmail.com";
 
 // ==========================================
 // TYPES
@@ -265,6 +271,10 @@ export default function StudentDashboard() {
     // Popup showing the student's own Reviews & Ratings screen,
     // opened directly from the Rating stat card.
     const [showRatingsPopup, setShowRatingsPopup] =
+        useState(false);
+
+    // "Copied" feedback for the Contact Support quick action
+    const [supportEmailCopied, setSupportEmailCopied] =
         useState(false);
 
     // Recent Activity feed shown on the dashboard. Merged from
@@ -1167,6 +1177,28 @@ export default function StudentDashboard() {
     }
 
     // ==========================================
+    // COPY SUPPORT EMAIL
+    //
+    // Fallback for devices with no mail app set up: copies the
+    // support address so the student can paste it anywhere.
+    // ==========================================
+
+    async function copySupportEmail() {
+        try {
+            await navigator.clipboard.writeText(SUPPORT_EMAIL);
+
+            setSupportEmailCopied(true);
+
+            setTimeout(
+                () => setSupportEmailCopied(false),
+                2000
+            );
+        } catch {
+            alert(`Support email: ${SUPPORT_EMAIL}`);
+        }
+    }
+
+    // ==========================================
     // LOGOUT
     // ==========================================
 
@@ -1648,6 +1680,38 @@ export default function StudentDashboard() {
                                         </div>
                                         <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                                     </button>
+
+                                    {/* CONTACT SUPPORT */}
+                                    <div className="w-full flex items-center gap-3 border rounded-xl p-3 hover:bg-gray-50 transition">
+
+                                        <a
+                                            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("UniSeV Support Request")}`}
+                                            className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                                        >
+                                            <div className="w-10 h-10 shrink-0 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                                                <Mail className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-gray-900">Contact Support</p>
+                                                <p className="text-sm text-gray-500 truncate">{SUPPORT_EMAIL}</p>
+                                            </div>
+                                        </a>
+
+                                        <button
+                                            type="button"
+                                            onClick={copySupportEmail}
+                                            aria-label="Copy support email"
+                                            title={supportEmailCopied ? "Copied" : "Copy email"}
+                                            className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                                        >
+                                            {supportEmailCopied ? (
+                                                <Check className="w-4 h-4 text-green-600" />
+                                            ) : (
+                                                <Copy className="w-4 h-4" />
+                                            )}
+                                        </button>
+
+                                    </div>
 
                                 </div>
 

@@ -4,46 +4,136 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-const TERMS = [
+// A section is made of blocks: a plain string is a normal paragraph,
+// { bold } is an emphasised paragraph, { bullets } is a bullet list.
+type TermsBlock = string | { bold: string } | { bullets: string[] };
+
+interface TermsSection {
+  title: string;
+  blocks: TermsBlock[];
+}
+
+const TERMS_EFFECTIVE_DATE = "October 27, 2026";
+
+const TERMS_INTRO: string[] = [
+  "By creating an account, accessing, or using UniSeV, you agree to these Terms and Conditions. If you do not agree, you must not use the platform.",
+  "UniSeV is a student-focused marketplace that connects clients who need tasks or services completed with students who offer those services. These Terms govern your access to and use of UniSeV, including your account, task listings, applications, communications, payments, withdrawals, and other platform features.",
+];
+
+const TERMS: TermsSection[] = [
   {
-    title: "1. Acceptance of Terms",
-    body: "By creating a UniSeV account, you agree to these Terms and Conditions. If you do not agree, you may not use the platform.",
+    title: "1. Eligibility and Account Responsibility",
+    blocks: [
+      "Users must provide accurate, complete, and up-to-date information when creating and maintaining an account. Users must not impersonate another person, submit false identity information, or create accounts for fraudulent purposes.",
+      "You are responsible for maintaining the confidentiality of your login credentials and for activities conducted through your account. UniSeV may request identity verification where necessary for security, trust, legal compliance, or payment processing.",
+    ],
   },
   {
-    title: "2. About UniSeV",
-    body: "UniSeV is a marketplace that connects university students with clients who need tasks or services completed.",
+    title: "2. Platform Use and User Conduct",
+    blocks: [
+      "Users must use UniSeV lawfully, honestly, and respectfully. Prohibited activities include fraud, scams, harassment, threats, discrimination, impersonation, submitting misleading task descriptions, manipulating reviews, exploiting platform features, and any activity that threatens the safety or security of other users.",
+      "Users must not post tasks that involve illegal activities, academic dishonesty, or services prohibited by UniSeV policies or applicable law.",
+    ],
   },
   {
-    title: "3. User Responsibilities",
-    body: "Users must provide accurate information, keep their login details secure, communicate respectfully, and use UniSeV lawfully.",
+    title: "3. All Payments and Transactions Must Remain on UniSeV",
+    blocks: [
+      {
+        bold: "All payments for tasks, services, and other arrangements initiated through UniSeV must be made and processed through the official UniSeV platform and its authorized payment channels.",
+      },
+      "Users must not request, encourage, accept, or make off-platform payments for work arranged through UniSeV. This includes attempts to move payments to personal bank accounts, mobile money accounts, external wallets, or other payment services to avoid UniSeV's payment process or applicable fees.",
+      "Users must not use UniSeV to connect with another user and then bypass the platform to complete or pay for the agreed task privately.",
+      "Where UniSeV provides an escrow or payment-holding feature, the funds will be handled according to the applicable payment terms and the status of the transaction. Users must follow the platform's payment, task-completion, approval, refund, and dispute procedures.",
+      "UniSeV will not necessarily be able to verify, recover, or resolve payments made outside its authorized systems. Users who transact off-platform may lose access to payment records, dispute assistance, or other protections available through UniSeV, since UniSeV does not support these.",
+    ],
   },
   {
-    title: "4. Tasks and Services",
-    body: "Clients are responsible for providing accurate task information and agreed payments. Students are responsible for completing accepted tasks as agreed.",
+    title: "4. Tasks, Agreements, and Service Delivery",
+    blocks: [
+      "Clients are responsible for providing clear task descriptions, reasonable requirements, accurate deadlines, and any agreed payment amount. Students are responsible for applying for tasks honestly, completing accepted work to the agreed specifications, communicating professionally, and meeting agreed deadlines.",
+      "Users must not accept tasks they have no reasonable intention or ability to complete. Neither party may intentionally misrepresent completed work, withhold relevant information, or manipulate task completion and approval procedures.",
+      "Any additional work, changes to the scope of a task, or changes to the agreed price must be communicated and agreed upon through UniSeV.",
+    ],
   },
   {
-    title: "5. Payments",
-    body: "Payments, fees, wallets, and escrow transactions are subject to the payment methods and rules supported by UniSeV.",
+    title: "5. Platform Fees, Wallets, Deposits, and Withdrawals",
+    blocks: [
+      "Applicable fees, minimum transaction amounts, withdrawal requirements, processing times, and other payment conditions will be communicated through the platform or relevant payment interface where applicable.",
+      "Wallet balances displayed on UniSeV are subject to the platform's transaction records, verification procedures, payment-provider confirmations, and applicable terms.",
+      "Users must provide accurate payment details and comply with any identity verification or other requirements necessary to process transactions.",
+      "UniSeV may delay, reject, reverse, or investigate a transaction where reasonably necessary to address suspected fraud, a payment-provider restriction, a disputed transaction, a security concern, or a legal obligation. Any handling of funds will remain subject to applicable law and the relevant payment-provider rules.",
+    ],
   },
   {
-    title: "6. Prohibited Activities",
-    body: "Users must not use UniSeV for illegal activities, fraud, harassment, scams, or activities that could harm other users or the platform.",
+    title: "6. Disputes, Refunds, and Complaints",
+    blocks: [
+      "Users should raise task-related disputes, payment issues, suspected fraud, or complaints through the official UniSeV support or dispute-resolution channels.",
+      "Where available, UniSeV may review relevant task details, communications, payment records, and submitted evidence to help determine an appropriate resolution under its policies and applicable law.",
+      "Users must provide truthful information and cooperate reasonably with investigations. UniSeV does not guarantee a particular outcome in every dispute.",
+    ],
   },
   {
-    title: "7. Account Suspension",
-    body: "UniSeV may restrict or suspend accounts that violate these Terms or misuse the platform.",
+    title: "7. Account Suspension and Permanent Banning",
+    blocks: [
+      "UniSeV reserves the right to investigate suspected violations and, where reasonably justified, issue warnings, restrict features, suspend accounts, cancel task access, withhold or delay transactions where legally and contractually permitted, or permanently ban users.",
+      "Conduct that may result in suspension or permanent banning includes, but is not limited to:",
+      {
+        bullets: [
+          "Making, requesting, or accepting off-platform payments for tasks arranged through UniSeV.",
+          "Attempting to bypass UniSeV's payment system, transaction fees, or applicable platform procedures.",
+          "Using the platform to commit fraud, scam users, or facilitate illegal activity.",
+          "Providing false identity or payment information.",
+          "Harassing, threatening, exploiting, or defrauding other users.",
+          "Manipulating task listings, reviews, payments, disputes, or account-verification systems.",
+          "Repeatedly violating these Terms or refusing to comply with legitimate platform requirements.",
+        ],
+      },
+      {
+        bold: "Off-platform payment violations may result in immediate account suspension or permanent banning, depending on the seriousness and circumstances of the violation. UniSeV may take further action where required by law or necessary to protect users and the platform.",
+      },
+      "Where appropriate and legally permissible, UniSeV may provide an opportunity to respond to a suspension or decision. Account enforcement does not automatically eliminate legitimate outstanding payment obligations or users' rights under applicable law.",
+    ],
   },
   {
-    title: "8. Privacy",
-    body: "User information will be handled according to UniSeV's privacy practices and applicable laws.",
+    title: "8. Privacy and Personal Information",
+    blocks: [
+      "Users must respect other users' privacy and must not misuse, disclose, sell, or collect personal information obtained through UniSeV without proper authorization or a lawful basis.",
+      "Personal information will be handled in accordance with UniSeV's Privacy Policy and applicable data-protection laws.",
+    ],
   },
   {
-    title: "9. Changes to Terms",
-    body: "UniSeV may update these Terms when necessary. Users will be responsible for reviewing updated Terms.",
+    title: "9. Intellectual Property and Platform Security",
+    blocks: [
+      "UniSeV's branding, website design, software, logos, and other platform materials are protected by applicable intellectual-property laws, except where otherwise stated.",
+      "Users must not copy, reverse-engineer, interfere with, exploit vulnerabilities in, or attempt unauthorized access to UniSeV's systems. Users retain any rights they lawfully hold in content they submit, subject to the permissions necessary for UniSeV to operate and provide its services.",
+    ],
   },
   {
-    title: "10. Acceptance",
-    body: "By checking the agreement box and creating an account, the user confirms that they have read and accepted these Terms and Conditions.",
+    title: "10. Platform Availability and Limitation of Responsibility",
+    blocks: [
+      "UniSeV may update, modify, suspend, or discontinue features as reasonably necessary for maintenance, security, business operations, or legal compliance.",
+      "To the extent permitted by applicable law, UniSeV is not responsible for losses arising from a user's dishonest conduct, inaccurate information, failure to perform an agreed task, unauthorized off-platform transactions, or interruptions caused by third-party payment providers or services.",
+      "UniSeV does not guarantee that every task will be completed, every client will find a suitable student, or every transaction will be free from delay or dispute. Nothing in these Terms excludes liability or consumer rights that cannot lawfully be excluded.",
+    ],
+  },
+  {
+    title: "11. Changes to These Terms",
+    blocks: [
+      "UniSeV may update these Terms from time to time. Material changes will be communicated through appropriate platform notices or other reasonable means where required. Continued use of UniSeV after changes take effect constitutes acceptance of the updated Terms to the extent permitted by applicable law. If you disagree with a change, you must stop using the affected services.",
+    ],
+  },
+  {
+    title: "12. Applicable Law",
+    blocks: [
+      "These Terms are subject to the laws of Ghana and any other mandatory laws applicable to the relevant user or transaction. Nothing in these Terms removes any legal rights that users may have under applicable law.",
+    ],
+  },
+  {
+    title: "13. Contact and Support",
+    blocks: [
+      "Questions, complaints, payment disputes, and reports of violations should be submitted through UniSeV's official support channels.",
+      "By creating an account or continuing to use UniSeV, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.",
+    ],
   },
 ];
 
@@ -418,13 +508,56 @@ export default function AuthPage() {
           <div className="bg-white rounded-xl shadow w-full max-w-140 max-h-[85dvh] flex flex-col">
             <div className="p-4 sm:p-6 border-b">
               <h2 className="text-lg sm:text-xl font-bold">UniSeV Terms and Conditions</h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Effective date: {TERMS_EFFECTIVE_DATE}
+              </p>
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-sm">
+              {/* INTRO */}
+              <div className="space-y-2">
+                {TERMS_INTRO.map((paragraph, i) => (
+                  <p key={i} className="text-gray-700">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+
+              {/* SECTIONS */}
               {TERMS.map((section) => (
                 <div key={section.title}>
                   <h3 className="font-semibold">{section.title}</h3>
-                  <p className="text-gray-700">{section.body}</p>
+
+                  <div className="mt-1 space-y-2">
+                    {section.blocks.map((block, i) => {
+                      if (typeof block === "string") {
+                        return (
+                          <p key={i} className="text-gray-700">
+                            {block}
+                          </p>
+                        );
+                      }
+
+                      if ("bold" in block) {
+                        return (
+                          <p key={i} className="font-semibold text-gray-900">
+                            {block.bold}
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <ul
+                          key={i}
+                          className="list-disc pl-5 space-y-1 text-gray-700"
+                        >
+                          {block.bullets.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>

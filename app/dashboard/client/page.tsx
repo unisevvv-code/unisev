@@ -21,6 +21,9 @@ import {
     Lock,
     RotateCcw,
     HelpCircle,
+    Mail,
+    Copy,
+    Check,
 } from "lucide-react";
 
 import Header from "./Header";
@@ -33,6 +36,9 @@ import Wallet from "./Wallet";
 import ClientProfile from "./Profile";
 import HowItWorks from "@/components/HowItWorks";
 import { getGreeting } from "@/lib/greeting";
+
+// Official UniSeV support address (used by the Contact Support quick action)
+const SUPPORT_EMAIL = "unisevvv@gmail.com";
 
 type Task = {
     id: string;
@@ -145,6 +151,9 @@ export default function ClientDashboard() {
     // component, so it stays on screen even when the page switches
     // (for example after a task is created).
     const [notice, setNotice] = useState<NoticeState | null>(null);
+
+    // "Copied" feedback for the Contact Support quick action
+    const [supportEmailCopied, setSupportEmailCopied] = useState(false);
 
     // Recent Activity feed for the dashboard. Merged from
     // `applications` (on this client's tasks) and `wallet_transactions`
@@ -690,6 +699,32 @@ export default function ClientDashboard() {
     }
 
     // ==========================================
+    // COPY SUPPORT EMAIL
+    //
+    // Fallback for devices with no mail app set up: copies the
+    // support address so the client can paste it anywhere.
+    // ==========================================
+
+    async function copySupportEmail() {
+        try {
+            await navigator.clipboard.writeText(SUPPORT_EMAIL);
+
+            setSupportEmailCopied(true);
+
+            setTimeout(
+                () => setSupportEmailCopied(false),
+                2000
+            );
+        } catch {
+            setNotice({
+                type: "success",
+                title: "Support email",
+                message: SUPPORT_EMAIL,
+            });
+        }
+    }
+
+    // ==========================================
     // RELATIVE TIME FORMAT ("2 minutes ago", etc.)
     // ==========================================
 
@@ -1133,6 +1168,38 @@ export default function ClientDashboard() {
                                         </div>
                                         <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                                     </button>
+
+                                    {/* CONTACT SUPPORT */}
+                                    <div className="w-full flex items-center gap-3 border rounded-xl p-3 hover:bg-gray-50 transition">
+
+                                        <a
+                                            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("UniSeV Support Request")}`}
+                                            className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                                        >
+                                            <div className="w-10 h-10 shrink-0 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                                                <Mail className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-gray-900">Contact Support</p>
+                                                <p className="text-sm text-gray-500 truncate">{SUPPORT_EMAIL}</p>
+                                            </div>
+                                        </a>
+
+                                        <button
+                                            type="button"
+                                            onClick={copySupportEmail}
+                                            aria-label="Copy support email"
+                                            title={supportEmailCopied ? "Copied" : "Copy email"}
+                                            className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+                                        >
+                                            {supportEmailCopied ? (
+                                                <Check className="w-4 h-4 text-green-600" />
+                                            ) : (
+                                                <Copy className="w-4 h-4" />
+                                            )}
+                                        </button>
+
+                                    </div>
 
                                 </div>
 

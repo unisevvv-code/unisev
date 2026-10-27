@@ -37,6 +37,11 @@ export default function Profile({
   const isVerified =
     profile.verification_status === "Verified";
 
+  // Once submitted (pending) or approved, the upload is closed
+  const verificationLocked =
+    isVerified ||
+    profile.verification_status === "Pending Verification";
+
   // =========================================================
   // RATING (for the avatar badge + summary line)
   // =========================================================
@@ -418,20 +423,28 @@ export default function Profile({
                 Upload Student ID Card
               </label>
 
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) => {
+              {verificationLocked ? (
+                <p className="border p-3 rounded-xl w-full bg-slate-50 text-sm text-gray-600">
+                  {isVerified
+                    ? "Your account is verified. No further submission is needed."
+                    : "Your ID has been submitted and is being reviewed. It can only be submitted once."}
+                </p>
+              ) : (
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => {
 
-                  if (!e.target.files) return;
+                    if (!e.target.files) return;
 
-                  setVerificationFile(
-                    e.target.files[0]
-                  );
+                    setVerificationFile(
+                      e.target.files[0]
+                    );
 
-                }}
-                className="border p-3 rounded-xl w-full"
-              />
+                  }}
+                  className="border p-3 rounded-xl w-full"
+                />
+              )}
 
               {profile.verification_document && (
                 <p className="text-green-600 text-sm mt-2">

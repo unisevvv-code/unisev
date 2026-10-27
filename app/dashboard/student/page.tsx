@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -475,11 +475,48 @@ export default function StudentDashboard() {
     // SAVE PROFILE
     // ==========================================
 
+    // Blocks a second save while one is still running (double clicks),
+    // so the verification can never be submitted twice at once.
+    const savingProfileRef = useRef(false);
+
     async function saveProfile() {
+        if (savingProfileRef.current) return;
+
+        savingProfileRef.current = true;
+
+        try {
+            await saveProfileInner();
+        } finally {
+            savingProfileRef.current = false;
+        }
+    }
+
+    async function saveProfileInner() {
         const { data: userData } =
             await supabase.auth.getUser();
 
         if (!userData.user) return;
+
+        // Verification can only be submitted once: while it is pending
+        // review, or after it has been approved, no new document is accepted.
+        const verificationLocked =
+            profile.verification_status === "Pending Verification" ||
+            profile.verification_status === "Verified";
+
+        if (verificationFile && verificationLocked) {
+            setVerificationFile(null);
+
+            setNotice({
+                type: "error",
+                title: "Already submitted",
+                message:
+                    profile.verification_status === "Verified"
+                        ? "Your account is already verified."
+                        : "Your verification is already being reviewed. You can't submit it again.",
+            });
+
+            return;
+        }
 
         let verificationDocument = "";
 
@@ -568,18 +605,19 @@ export default function StudentDashboard() {
                     bio:
                         profile.bio,
 
-                    verification_document:
-                        verificationDocument,
-
-                    verification_status:
-                        verificationFile
-                            ? "Pending Verification"
-                            : profile.verification_status,
-
-                    verification_submitted_at:
-                        verificationFile
-                            ? new Date()
-                            : null,
+                    // Verification fields are only touched when a new
+                    // document is actually being submitted. Before, every
+                    // plain save wiped the stored document and date.
+                    ...(verificationFile
+                        ? {
+                              verification_document:
+                                  verificationDocument,
+                              verification_status:
+                                  "Pending Verification",
+                              verification_submitted_at:
+                                  new Date(),
+                          }
+                        : {}),
                 })
                 .eq(
                     "id",
@@ -653,13 +691,18 @@ export default function StudentDashboard() {
             ...profile,
 
             verification_document:
-                verificationDocument,
+                verificationFile
+                    ? verificationDocument
+                    : profile.verification_document,
 
             verification_status:
                 verificationFile
                     ? "Pending Verification"
                     : profile.verification_status,
         });
+
+        // Clear the chosen file so pressing Save again can't resubmit it
+        setVerificationFile(null);
 
         setNotice({
             type: "success",

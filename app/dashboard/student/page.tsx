@@ -26,7 +26,7 @@ import {
 
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import BrowseTasks from "./components/BrowseTasks";
+import BrowseTasks, { type ApplyResult } from "./components/BrowseTasks";
 import MyTasks from "./components/MyTasks";
 import Profile from "./components/Profile";
 import MessagesPage from "./components/MessagesPage";
@@ -1103,18 +1103,24 @@ export default function StudentDashboard() {
     // Checks the task is still open first, so a student on a stale
     // Browse Tasks page can't apply to a task the client has since
     // cancelled (or that was assigned to someone else).
+    //
+    // Returns an ApplyResult instead of calling alert(), so
+    // BrowseTasks can show the message in its own in-page dialog.
     // ==========================================
 
     async function applyTask(
         taskId: string,
         askingPrice?: string
-    ) {
-        console.log("APPLY CALLED WITH:", taskId, askingPrice);
-
+    ): Promise<ApplyResult> {
         const { data: userData } =
             await supabase.auth.getUser();
 
-        if (!userData.user) return;
+        if (!userData.user) {
+            return {
+                status: "error",
+                message: "Please log in again to apply.",
+            };
+        }
 
         const { data: taskData, error: taskError } =
             await supabase
@@ -1124,15 +1130,21 @@ export default function StudentDashboard() {
                 .single();
 
         if (taskError || !taskData) {
-            alert("This task could not be found.");
             await getTasks();
-            return;
+
+            return {
+                status: "error",
+                message: "This task could not be found.",
+            };
         }
 
         if (taskData.status !== "open") {
-            alert("This task is no longer available.");
             await getTasks();
-            return;
+
+            return {
+                status: "error",
+                message: "This task is no longer available.",
+            };
         }
 
         const { error } =
@@ -1154,26 +1166,38 @@ export default function StudentDashboard() {
                 });
 
         if (error) {
-            alert(
-                error.message.replace(/^[A-Z_]+:\s*/, "")
-            );
-
             if (error.message.startsWith("TASK_CANCELLED")) {
                 await getTasks();
             }
 
-            return;
-        }
+            // 23505 = unique violation (already applied)
+            if (error.code === "23505") {
+                return {
+                    status: "already_applied",
+                    message:
+                        "You have already applied for this task.",
+                };
+            }
 
-        alert(
-            "Applied successfully"
-        );
+            return {
+                status: "error",
+                message: error.message.replace(
+                    /^[A-Z_]+:\s*/,
+                    ""
+                ),
+            };
+        }
 
         await getMyTasks();
 
         await getStudentStats();
 
         await getRecentActivity();
+
+        return {
+            status: "applied",
+            message: "Your application has been submitted.",
+        };
     }
 
     // ==========================================
@@ -1245,6 +1269,10 @@ export default function StudentDashboard() {
                         applyTask={
                             applyTask
                         }
+                        appliedTaskIds={myTasks.map(
+                            (application) =>
+                                application.task_id
+                        )}
                     />
                 );
 

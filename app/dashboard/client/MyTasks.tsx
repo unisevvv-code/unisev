@@ -198,7 +198,7 @@ export default function MyTasks({
     // LOAD ACCEPTED PRICES (single-task asking price only)
     // =========================================================
 
-       const loadAcceptedPrices = useCallback(async () => {
+    const loadAcceptedPrices = useCallback(async () => {
 
         if (tasks.length === 0) return;
 
@@ -953,6 +953,10 @@ export default function MyTasks({
                                 status ===
                                 "open";
 
+                            const isCancelled =
+                                status ===
+                                "cancelled";
+
                             const completionPending =
                                 !isMulti &&
                                 acceptedApplication
@@ -1092,7 +1096,34 @@ export default function MyTasks({
 
                                                         {/* STATUS BADGE */}
 
-                                                        {isMulti ? (
+                                                        {isCancelled ? (
+
+                                                            <span className="
+                                                                inline-flex
+                                                                shrink-0
+                                                                items-center
+                                                                gap-1
+                                                                rounded-full
+                                                                bg-red-50
+                                                                px-2
+                                                                py-0.5
+                                                                text-[10px]
+                                                                font-semibold
+                                                                text-red-600
+                                                                sm:px-2.5
+                                                                sm:py-1
+                                                                sm:text-[11px]
+                                                            ">
+                                                                <span className="
+                                                                    h-1.5
+                                                                    w-1.5
+                                                                    rounded-full
+                                                                    bg-red-500
+                                                                " />
+                                                                Cancelled
+                                                            </span>
+
+                                                        ) : isMulti ? (
 
                                                             slotsFull ? (
 
@@ -1301,7 +1332,7 @@ export default function MyTasks({
                                                     sm:text-[19px]
                                                 ">
                                                     $
-                                                                                                       {isMulti
+                                                    {isMulti
                                                         ? task.reward_per_participant ?? 0
                                                         : acceptedPrices[
                                                               task.id
@@ -1364,7 +1395,17 @@ export default function MyTasks({
                                                     Status
                                                 </p>
 
-                                                {isMulti ? (
+                                                {isCancelled ? (
+
+                                                    <p className="
+                                                        text-[14px]
+                                                        font-semibold
+                                                        text-red-600
+                                                    ">
+                                                        Cancelled
+                                                    </p>
+
+                                                ) : isMulti ? (
 
                                                     <p className={`text-[14px] font-semibold ${slotsFull ? "text-slate-500" : "text-emerald-600"}`}>
                                                         {joinedCount}
@@ -1545,10 +1586,18 @@ export default function MyTasks({
                                                         </p>
                                                     </div>
                                                     <div className="rounded-xl border border-slate-200 bg-white p-2.5 sm:p-3">
-                                                        <p className="text-[11px] font-medium text-slate-400">Participants</p>
-                                                        <p className="mt-1 text-sm font-bold text-slate-700">
-                                                            {joinedCount}
-                                                            {maxParticipants !== null ? `/${maxParticipants}` : ""}
+                                                        <p className="text-[11px] font-medium text-slate-400">
+                                                            {isCancelled ? "Status" : "Participants"}
+                                                        </p>
+                                                        <p className={`mt-1 text-sm font-bold ${isCancelled ? "text-red-600" : "text-slate-700"}`}>
+                                                            {isCancelled ? (
+                                                                "Cancelled"
+                                                            ) : (
+                                                                <>
+                                                                    {joinedCount}
+                                                                    {maxParticipants !== null ? `/${maxParticipants}` : ""}
+                                                                </>
+                                                            )}
                                                         </p>
                                                     </div>
                                                     <div className="rounded-xl border border-slate-200 bg-white p-2.5 sm:p-3">
@@ -1705,14 +1754,20 @@ export default function MyTasks({
                                                 <div className="mt-6">
 
                                                     <p className="mb-3 text-sm font-semibold text-slate-800">
-                                                        Participants ({joinedCount}
-                                                        {maxParticipants !== null ? `/${maxParticipants}` : ""})
+                                                        {isCancelled
+                                                            ? "Participants"
+                                                            : <>
+                                                                  Participants ({joinedCount}
+                                                                  {maxParticipants !== null ? `/${maxParticipants}` : ""})
+                                                              </>}
                                                     </p>
 
                                                     {applications.length === 0 ? (
 
                                                         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-                                                             This task has been cancelled.
+                                                            {isCancelled
+                                                                ? "This task has been cancelled."
+                                                                : "No participants have joined yet."}
                                                         </div>
 
                                                     ) : (

@@ -28,7 +28,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import BrowseTasks, { type ApplyResult } from "./components/BrowseTasks";
 import MyTasks from "./components/MyTasks";
-import Profile from "./components/Profile";
+import Profile, { type SaveProfileResult } from "./components/Profile";
 import MessagesPage from "./components/MessagesPage";
 import Wallet from "./components/Wallet";
 import StudentProfilePreview from "./components/StudentProfilePreview";
@@ -462,30 +462,25 @@ export default function StudentDashboard() {
 
     // ==========================================
     // SAVE PROFILE
+    //
+    // Returns a SaveProfileResult instead of calling alert(), so
+    // the Profile page can show the message in its own in-page
+    // popup (no "unisev.vercel.app says" header).
     // ==========================================
 
-    async function saveProfile() {
+    async function saveProfile(): Promise<SaveProfileResult> {
         const { data: userData } =
             await supabase.auth.getUser();
 
-        if (!userData.user) return;
+        if (!userData.user) {
+            return {
+                status: "error",
+                message:
+                    "Please log in again to save your profile.",
+            };
+        }
 
         let verificationDocument = "";
-
-        console.log(
-            "AUTH USER ID:",
-            userData.user.id
-        );
-
-        console.log(
-            "VERIFICATION USER ID:",
-            userData.user.id
-        );
-
-        console.log(
-            "VERIFICATION DOCUMENT:",
-            verificationDocument
-        );
 
         if (verificationFile) {
             const fileName =
@@ -506,11 +501,11 @@ export default function StudentDashboard() {
                     uploadError
                 );
 
-                alert(
-                    uploadError.message
-                );
-
-                return;
+                return {
+                    status: "error",
+                    message:
+                        uploadError.message,
+                };
             }
 
             const {
@@ -526,11 +521,6 @@ export default function StudentDashboard() {
 
             verificationDocument =
                 publicUrl.publicUrl;
-
-            console.log(
-                "Verification URL:",
-                verificationDocument
-            );
         }
 
         const { error } =
@@ -574,59 +564,47 @@ export default function StudentDashboard() {
                 );
 
         if (error) {
-            alert(error.message);
-            return;
+            console.log(error);
+
+            return {
+                status: "error",
+                message: error.message,
+            };
         }
 
         if (verificationFile) {
-            const verificationData = {
-                user_id:
-                    userData.user.id,
-
-                school_name:
-                    profile.university,
-
-                document_url:
-                    verificationDocument,
-
-                status:
-                    "Pending",
-            };
-
-            console.log(
-                "Inserting:",
-                verificationData
-            );
-
             const {
-                data,
                 error: verificationError,
             } =
                 await supabase
                     .from(
                         "student_verifications"
                     )
-                    .insert(
-                        verificationData
-                    )
+                    .insert({
+                        user_id:
+                            userData.user.id,
+
+                        school_name:
+                            profile.university,
+
+                        document_url:
+                            verificationDocument,
+
+                        status:
+                            "Pending",
+                    })
                     .select();
 
-            console.log(
-                "Returned data:",
-                data
-            );
-
-            console.log(
-                "Insert error:",
-                verificationError
-            );
-
             if (verificationError) {
-                alert(
-                    verificationError.message
+                console.log(
+                    verificationError
                 );
 
-                return;
+                return {
+                    status: "error",
+                    message:
+                        verificationError.message,
+                };
             }
         }
 
@@ -642,9 +620,11 @@ export default function StudentDashboard() {
                     : profile.verification_status,
         });
 
-        alert(
-            "Profile Updated"
-        );
+        return {
+            status: "success",
+            message:
+                "Your profile has been updated successfully.",
+        };
     }
 
     // ==========================================

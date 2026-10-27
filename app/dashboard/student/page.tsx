@@ -605,6 +605,9 @@ export default function StudentDashboard() {
                     bio:
                         profile.bio,
 
+                    skills:
+                        profile.skills,
+
                     // Verification fields are only touched when a new
                     // document is actually being submitted. Before, every
                     // plain save wiped the stored document and date.

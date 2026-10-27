@@ -39,6 +39,10 @@ const QUICK_AMOUNTS = [10, 25, 50, 100];
 const MIN_WITHDRAWAL = 5;
 const MAX_WITHDRAWAL = 200000;
 
+// How many transactions the history list shows at first;
+// "Show more" reveals this many more each time.
+const HISTORY_PAGE_SIZE = 20;
+
 const INPUT_CLASS =
     "mt-1 w-full border rounded-xl px-4 py-3 outline-none focus:border-green-600 bg-white";
 
@@ -50,6 +54,10 @@ export default function Wallet() {
     >([]);
 
     const [loading, setLoading] = useState(true);
+
+    // How many transactions are currently shown in the history list
+    const [visibleCount, setVisibleCount] =
+        useState(HISTORY_PAGE_SIZE);
 
     // ---------------------------------------------
     // ADD FUNDS (Paystack) STATE
@@ -122,6 +130,10 @@ export default function Wallet() {
 
         // ---------------------------------------------
         // LOAD TRANSACTIONS
+        //
+        // All transactions are still loaded (the Total Spent and
+        // In Escrow cards are calculated from them). Only the
+        // history list below limits how many it shows at once.
         // ---------------------------------------------
 
         const {
@@ -672,6 +684,8 @@ export default function Wallet() {
                 mt-6
             ">
 
+                {/* Header stays fixed; only the list below scrolls */}
+
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">
                     Transaction History
                 </h3>
@@ -705,9 +719,11 @@ export default function Wallet() {
 
                 ) : (
 
-                    <div className="mt-5 space-y-3">
+                    <div className="mt-5 max-h-112 overflow-y-auto space-y-3 pr-1">
 
-                        {transactions.map(
+                        {transactions
+                            .slice(0, visibleCount)
+                            .map(
                             (transaction) => {
 
                                 const isDeposit =
@@ -822,6 +838,31 @@ export default function Wallet() {
                                     </div>
                                 );
                             }
+                        )}
+
+                        {transactions.length > visibleCount && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setVisibleCount(
+                                        (count) =>
+                                            count + HISTORY_PAGE_SIZE
+                                    )
+                                }
+                                className="
+                                    w-full
+                                    rounded-xl
+                                    border
+                                    py-3
+                                    text-sm
+                                    font-semibold
+                                    text-gray-700
+                                    hover:bg-gray-50
+                                    transition
+                                "
+                            >
+                                Show more
+                            </button>
                         )}
 
                     </div>

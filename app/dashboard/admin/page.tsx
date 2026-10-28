@@ -37,7 +37,25 @@ interface StudentVerification {
     document_url?: string | null;
 }
 
+// Another account that uses the same school + student ID
+interface DuplicateMatch {
+    id: string;
+    full_name: string;
+    verification_status: string;
+}
+
+// Makes "KNUST", " knust " and "Knust" equal, and
+// "20 123 456", "20123456" and " 20123456 " equal.
+function normaliseSchool(value?: string | null) {
+    return (value || "").trim().toLowerCase();
+}
+
+function normaliseStudentId(value?: string | null) {
+    return (value || "").replace(/\s+/g, "").toLowerCase();
+}
+
 interface CombinedStudent extends StudentVerification {
+    duplicates: DuplicateMatch[];
     full_name: string;
     university: string;
     student_id: string;
@@ -638,6 +656,31 @@ export default function AdminDashboard() {
             return;
         }
 
+        // ----------------------------------------------
+        // DUPLICATE ID CHECK
+        //
+        // Looks for OTHER accounts with the same school
+        // and student ID (ignoring capitals and spaces).
+        // ----------------------------------------------
+
+        const { data: idProfiles, error: idError } =
+            await supabase
+                .from("profiles")
+                .select(`
+                    id,
+                    full_name,
+                    university,
+                    student_id,
+                    verification_status
+                `)
+                .not("student_id", "is", null)
+                .neq("student_id", "")
+                .range(0, 4999);
+
+        if (idError) {
+            console.log("DUPLICATE CHECK ERROR:", idError);
+        }
+
         const combinedStudents: CombinedStudent[] = (
             verifications as StudentVerification[]
         ).map(
@@ -650,8 +693,42 @@ export default function AdminDashboard() {
                         verification.user_id
                 );
 
+                const mySchool = normaliseSchool(
+                    profile?.university
+                );
+                const myId = normaliseStudentId(
+                    profile?.student_id
+                );
+
+                const duplicates: DuplicateMatch[] =
+                    myId && mySchool
+                        ? ((idProfiles as Profile[] | null) || [])
+                              .filter(
+                                  (other) =>
+                                      other.id !==
+                                          verification.user_id &&
+                                      normaliseSchool(
+                                          other.university
+                                      ) === mySchool &&
+                                      normaliseStudentId(
+                                          other.student_id
+                                      ) === myId
+                              )
+                              .map((other) => ({
+                                  id: other.id,
+                                  full_name:
+                                      other.full_name ||
+                                      "Unnamed account",
+                                  verification_status:
+                                      other.verification_status ||
+                                      "Not Verified",
+                              }))
+                        : [];
+
                 return {
                     ...verification,
+
+                    duplicates,
 
                     full_name:
                         profile?.full_name ||
@@ -1237,6 +1314,43 @@ export default function AdminDashboard() {
                                             shadow-sm
                                         "
                                     >
+
+                                        {student.duplicates.length > 0 && (
+                                            <div
+                                                role="alert"
+                                                className="
+                                                    mb-5
+                                                    rounded-xl
+                                                    border
+                                                    border-amber-300
+                                                    bg-amber-50
+                                                    p-4
+                                                    text-sm
+                                                    text-amber-900
+                                                "
+                                            >
+                                                <p className="font-semibold">
+                                                    ⚠ Possible duplicate: another account uses the same school and student ID.
+                                                </p>
+
+                                                <ul className="mt-2 list-disc pl-5 space-y-0.5">
+                                                    {student.duplicates.map(
+                                                        (dup) => (
+                                                            <li key={dup.id}>
+                                                                {dup.full_name}{" "}
+                                                                <span className="font-semibold">
+                                                                    ({dup.verification_status})
+                                                                </span>
+                                                            </li>
+                                                        )
+                                                    )}
+                                                </ul>
+
+                                                <p className="mt-2 text-xs">
+                                                    Compare both ID cards before approving.
+                                                </p>
+                                            </div>
+                                        )}
 
                                         <div className="flex justify-between gap-8">
 

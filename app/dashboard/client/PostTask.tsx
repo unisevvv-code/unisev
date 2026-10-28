@@ -4,11 +4,6 @@ import { useRef, useState } from "react";
 import {
     SquarePen,
     HelpCircle,
-    Bold,
-    Italic,
-    Underline,
-    List,
-    ListOrdered,
     UploadCloud,
     LayoutGrid,
     Calendar,
@@ -110,7 +105,6 @@ export default function PostTask({
     createMultiTask,
     isSubmitting,
 }: PostTaskProps) {
-    const descriptionRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multiFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -214,60 +208,6 @@ export default function PostTask({
 
     const totalMultiBudget =
         (Number(participants) || 0) * (Number(rewardPerParticipant) || 0);
-
-    function wrapSelection(before: string, after: string = before) {
-        const textarea = descriptionRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selected = description.slice(start, end);
-
-        const newValue =
-            description.slice(0, start) +
-            before +
-            selected +
-            after +
-            description.slice(end);
-
-        setDescription(newValue.slice(0, DESCRIPTION_MAX));
-
-        requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.setSelectionRange(
-                start + before.length,
-                start + before.length + selected.length
-            );
-        });
-    }
-
-    function prefixLines(prefix: string) {
-        const textarea = descriptionRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-
-        const lineStart = description.lastIndexOf("\n", start - 1) + 1;
-        let lineEnd = description.indexOf("\n", end);
-        if (lineEnd === -1) lineEnd = description.length;
-
-        const selectedLines = description.slice(lineStart, lineEnd);
-
-        const prefixed = selectedLines
-            .split("\n")
-            .map((line) => (line ? prefix + line : line))
-            .join("\n");
-
-        const newValue =
-            description.slice(0, lineStart) +
-            prefixed +
-            description.slice(lineEnd);
-
-        setDescription(newValue.slice(0, DESCRIPTION_MAX));
-
-        requestAnimationFrame(() => textarea.focus());
-    }
 
     function addFiles(newFiles: FileList | File[]) {
         setFiles([...files, ...Array.from(newFiles)]);
@@ -950,78 +890,24 @@ export default function PostTask({
                             <HelpTip text="Include instructions, requirements, and anything a student needs to get started." />
                         </div>
 
-                        <div className="border rounded-xl mt-2 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                            <div className="flex items-center gap-1 flex-wrap border-b bg-gray-50 px-2 py-2 sm:px-3">
-                                <button
-                                    type="button"
-                                    onClick={() => wrapSelection("**")}
-                                    className="p-2 rounded hover:bg-gray-200 text-gray-600"
-                                    title="Bold"
-                                >
-                                    <Bold className="w-4 h-4" />
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => wrapSelection("_")}
-                                    className="p-2 rounded hover:bg-gray-200 text-gray-600"
-                                    title="Italic"
-                                >
-                                    <Italic className="w-4 h-4" />
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        wrapSelection("<u>", "</u>")
-                                    }
-                                    className="p-2 rounded hover:bg-gray-200 text-gray-600"
-                                    title="Underline"
-                                >
-                                    <Underline className="w-4 h-4" />
-                                </button>
-
-                                <span className="w-px h-5 bg-gray-300 mx-1" />
-
-                                <button
-                                    type="button"
-                                    onClick={() => prefixLines("- ")}
-                                    className="p-2 rounded hover:bg-gray-200 text-gray-600"
-                                    title="Bulleted list"
-                                >
-                                    <List className="w-4 h-4" />
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => prefixLines("1. ")}
-                                    className="p-2 rounded hover:bg-gray-200 text-gray-600"
-                                    title="Numbered list"
-                                >
-                                    <ListOrdered className="w-4 h-4" />
-                                </button>
-                            </div>
-
-                            <textarea
-                                ref={descriptionRef}
-                                value={description}
-                                onChange={(e) =>
-                                    setDescription(
-                                        e.target.value.slice(
-                                            0,
-                                            DESCRIPTION_MAX
-                                        )
+                        <textarea
+                            value={description}
+                            onChange={(e) =>
+                                setDescription(
+                                    e.target.value.slice(
+                                        0,
+                                        DESCRIPTION_MAX
                                     )
-                                }
-                                maxLength={DESCRIPTION_MAX}
-                                placeholder="Provide clear details about what you need. Include instructions, requirements and any other important information..."
-                                className="w-full p-3 h-32 focus:outline-none resize-none sm:h-36"
-                            />
+                                )
+                            }
+                            maxLength={DESCRIPTION_MAX}
+                            placeholder="Provide clear details about what you need. Include instructions, requirements and any other important information..."
+                            className="w-full border rounded-xl p-3 mt-2 h-36 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none sm:h-40"
+                        />
 
-                            <p className="text-right text-xs text-gray-400 px-3 pb-2">
-                                {description.length}/{DESCRIPTION_MAX}
-                            </p>
-                        </div>
+                        <p className="text-right text-xs text-gray-400 mt-1">
+                            {description.length}/{DESCRIPTION_MAX}
+                        </p>
 
                         {/* UPLOAD FILES */}
                         <div className="flex items-center gap-1.5 mt-5">

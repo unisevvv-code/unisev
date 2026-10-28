@@ -26,6 +26,9 @@ interface ApplicationTask {
     title: string | null;
     category: string | null;
     recommended_price: number | null;
+    // Multi tasks have no recommended price; each student gets this instead
+    task_type: string | null;
+    reward_per_participant: number | null;
     client_id: string;
     status: string | null;
 }
@@ -191,6 +194,8 @@ export default function ApplicationsPage({
                     title,
                     category,
                     recommended_price,
+                    task_type,
+                    reward_per_participant,
                     client_id,
                     status
                 ),
@@ -353,7 +358,7 @@ export default function ApplicationsPage({
                     lines: [
                         `Amount funded: $${Number(result.amount).toFixed(2)}`,
                         `Participants: ${result.current_participants}/${result.max_participants}`,
-                        `Remaining wallet balance: $${Number(
+                        `REMAINING WALLET BALANCE: $${Number(
                             result.remaining_balance
                         ).toFixed(2)}`,
                     ],
@@ -364,7 +369,7 @@ export default function ApplicationsPage({
                     title: "Student selected successfully",
                     lines: [
                         `Amount funded: $${Number(result.amount).toFixed(2)}`,
-                        `Remaining wallet balance: $${Number(
+                        `REMAINING WALLET BALANCE: $${Number(
                             result.remaining_balance
                         ).toFixed(2)}`,
                     ],
@@ -930,9 +935,11 @@ export default function ApplicationsPage({
                                             </p>
                                             <p className="text-green-600 font-semibold">
                                                 $
-                                                {app.asking_price ||
-                                                    task?.recommended_price ||
-                                                    "Not set"}
+                                                {String(task?.task_type).toLowerCase() === "multi"
+                                                    ? task?.reward_per_participant ?? "Not set"
+                                                    : app.asking_price ||
+                                                      task?.recommended_price ||
+                                                      "Not set"}
                                             </p>
                                         </div>
 

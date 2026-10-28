@@ -119,6 +119,19 @@ export default function MyTasks({
         return `${taskId}_${studentId}`;
     }
 
+    // Initials for the student avatar, e.g. "UNI SEV" -> "US"
+    function getInitials(fullName: string) {
+        return (
+            fullName
+                .split(" ")
+                .filter(Boolean)
+                .map((word) => word[0])
+                .join("")
+                .substring(0, 2)
+                .toUpperCase() || "ST"
+        );
+    }
+
 
     // =========================================================
     // CATEGORY ICON
@@ -1818,8 +1831,8 @@ export default function MyTasks({
 
                                                                             <div className="flex items-center gap-3">
 
-                                                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                                                                                    👤
+                                                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                                                                                    {getInitials(application.full_name)}
                                                                                 </div>
 
                                                                                 <div className="min-w-0">
@@ -1945,10 +1958,14 @@ export default function MyTasks({
                                                             items-center
                                                             justify-center
                                                             rounded-full
-                                                            bg-blue-100
-                                                            text-blue-600
+                                                            bg-blue-600
+                                                            text-sm
+                                                            font-semibold
+                                                            text-white
                                                         ">
-                                                            👤
+                                                            {getInitials(
+                                                                acceptedApplication.full_name
+                                                            )}
                                                         </div>
 
                                                         <div className="min-w-0">

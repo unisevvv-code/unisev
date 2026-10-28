@@ -40,7 +40,12 @@ type AcceptedApplicationRow = {
     status: string;
     client_status: string | null;
     completion_requested_at: string | null;
-    profiles: { full_name: string | null }[] | null;
+    // Supabase returns a many-to-one embed (one student per application)
+    // as a single object, not an array. Both shapes are accepted here.
+    profiles:
+        | { full_name: string | null }
+        | { full_name: string | null }[]
+        | null;
 };
 
 // A message shown in an in-page dialog (replaces the old alert() popups)
@@ -305,11 +310,22 @@ export default function MyTasks({
         (data as AcceptedApplicationRow[] || []).forEach(
             (application) => {
 
+                const studentProfile = Array.isArray(
+                    application.profiles
+                )
+                    ? application.profiles[0]
+                    : application.profiles;
+
                 const entry: AcceptedApplication = {
-                    ...application,
+                    id: application.id,
+                    task_id: application.task_id,
+                    student_id: application.student_id,
+                    status: application.status,
+                    client_status: application.client_status,
+                    completion_requested_at:
+                        application.completion_requested_at,
                     full_name:
-                        application.profiles?.[0]
-                            ?.full_name ||
+                        studentProfile?.full_name ||
                         "Unknown Student",
                 };
 

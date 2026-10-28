@@ -783,7 +783,7 @@ export default function ClientDashboard() {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             getRecentActivity();
         }
-    }, [activePage]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [activePage]);
 
     useEffect(() => {
         if (tasks.length > 0) {
@@ -797,6 +797,13 @@ export default function ClientDashboard() {
             setApplicationCount(0);
         }
     }, [tasks, getApplicationCount]);
+
+    // Active = still running: completed and cancelled tasks are left out
+    const activeTaskCount = tasks.filter((task) => {
+        const status = task.status?.toLowerCase();
+
+        return status !== "completed" && status !== "cancelled";
+    }).length;
 
     function renderContent() {
         switch (activePage) {
@@ -927,9 +934,9 @@ export default function ClientDashboard() {
 
                                         <div>
                                             <h2 className="text-3xl font-bold text-blue-600">
-                                                {tasks.length}
+                                                {activeTaskCount}
                                             </h2>
-                                            <p className="font-semibold text-gray-900">Tasks</p>
+                                            <p className="font-semibold text-gray-900">Active Tasks</p>
                                    
                                         </div>
 

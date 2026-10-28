@@ -1013,6 +1013,23 @@ export default function MyTasks({
                                 joinedCount >=
                                     maxParticipants;
 
+                            // A multi task counts as completed once every
+                            // slot (2/2, 3/3, 4/4 ...) has been completed.
+                            const completedParticipants =
+                                applications.filter(
+                                    (application) =>
+                                        application.status === "completed"
+                                ).length;
+
+                            const allSlotsCompleted =
+                                isMulti &&
+                                !isCancelled &&
+                                (isCompleted ||
+                                    (maxParticipants !== null &&
+                                        maxParticipants > 0 &&
+                                        completedParticipants >=
+                                            maxParticipants));
+
                             // Only open / pending tasks that nobody is
                             // working on can be cancelled. Once the status
                             // changes, this turns false and the button goes.
@@ -1154,7 +1171,14 @@ export default function MyTasks({
 
                                                         ) : isMulti ? (
 
-                                                            slotsFull ? (
+                                                            allSlotsCompleted ? (
+
+                                                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                                                                    Completed
+                                                                </span>
+
+                                                            ) : slotsFull ? (
 
                                                                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
                                                                     <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -1432,6 +1456,12 @@ export default function MyTasks({
                                                         text-red-600
                                                     ">
                                                         Cancelled
+                                                    </p>
+
+                                                ) : allSlotsCompleted ? (
+
+                                                    <p className="text-[14px] font-semibold text-purple-600">
+                                                        Completed
                                                     </p>
 
                                                 ) : isMulti ? (

@@ -1194,6 +1194,14 @@ export default function StudentDashboard() {
         taskId: string,
         askingPrice?: string
     ): Promise<ApplyResult> {
+        // Only verified students can apply
+        if (profile.verification_status !== "Verified") {
+            return {
+                status: "error",
+                message: "Verify your account before you can apply.",
+            };
+        }
+
         const { data: userData } =
             await supabase.auth.getUser();
 
@@ -1354,6 +1362,9 @@ export default function StudentDashboard() {
                         }
                         applyTask={
                             applyTask
+                        }
+                        canApply={
+                            profile.verification_status === "Verified"
                         }
                         appliedTaskIds={myTasks.map(
                             (application) =>

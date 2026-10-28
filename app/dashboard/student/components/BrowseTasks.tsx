@@ -45,6 +45,10 @@ interface BrowseTasksProps {
   // Optional: ids of tasks this student has already applied for
   // (from the database), so "Applied" shows even after a reload.
   appliedTaskIds?: string[];
+
+  // Only verified students can apply. When false, the Apply buttons are
+  // greyed out and a "verify your account" message is shown instead.
+  canApply?: boolean;
 }
 
 type SortOption = "newest" | "oldest" | "highest";
@@ -69,6 +73,7 @@ export default function BrowseTasks({
   setAskingPrices,
   applyTask,
   appliedTaskIds,
+  canApply = true,
 }: BrowseTasksProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -109,6 +114,16 @@ export default function BrowseTasks({
 
   async function handleApply(task: Task, isMulti: boolean) {
     if (applyingId) return;
+
+    // Unverified students can't apply
+    if (!canApply) {
+      setNotice({
+        type: "info",
+        title: "Verify your account",
+        message: "Verify your account before you can apply.",
+      });
+      return;
+    }
 
     // Second click on a task that was already applied for
     if (isApplied(task.id)) {
@@ -1058,16 +1073,28 @@ export default function BrowseTasks({
 
                     {/* APPLY + EXPAND */}
                     <div className="
-                      flex
-                      items-center
-                      gap-2
                       sm:col-span-2
                       lg:col-span-1
                     ">
 
+                     <div className="
+                      flex
+                      items-center
+                      gap-2
+                     ">
+
                       <button
                         type="button"
-                        disabled={(isFull && !applied) || applying}
+                        disabled={
+                          (isFull && !applied) ||
+                          applying ||
+                          (!canApply && !applied)
+                        }
+                        title={
+                          !canApply && !applied
+                            ? "Verify your account before you can apply"
+                            : undefined
+                        }
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1092,6 +1119,8 @@ export default function BrowseTasks({
                           ${
                             applied
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                              : !canApply
+                              ? "bg-slate-200 text-slate-500 hover:bg-slate-200"
                               : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md disabled:hover:bg-blue-600"
                           }
                         `}
@@ -1124,6 +1153,14 @@ export default function BrowseTasks({
                       ">
                         ↓
                       </span>
+
+                     </div>
+
+                      {!canApply && !applied && (
+                        <p className="mt-1.5 text-xs font-medium text-amber-700">
+                          Verify your account before you can apply.
+                        </p>
+                      )}
 
                     </div>
 

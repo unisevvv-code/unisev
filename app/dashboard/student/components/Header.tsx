@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -35,6 +35,43 @@ export default function Header({
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [showNotifications, setShowNotifications] = useState(false);
     const [loadingNotifications, setLoadingNotifications] = useState(false);
+
+    // Wraps the bell button and its dropdown, so a click anywhere
+    // outside of it can close the dropdown.
+    const notificationRef = useRef<HTMLDivElement | null>(null);
+
+    // =========================================================
+    // CLOSE NOTIFICATIONS ON OUTSIDE CLICK / TAP / ESCAPE
+    // =========================================================
+
+    useEffect(() => {
+        if (!showNotifications) return;
+
+        function handlePointerDown(event: MouseEvent | TouchEvent) {
+            if (
+                notificationRef.current &&
+                !notificationRef.current.contains(event.target as Node)
+            ) {
+                setShowNotifications(false);
+            }
+        }
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                setShowNotifications(false);
+            }
+        }
+
+        document.addEventListener("mousedown", handlePointerDown);
+        document.addEventListener("touchstart", handlePointerDown);
+        document.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            document.removeEventListener("mousedown", handlePointerDown);
+            document.removeEventListener("touchstart", handlePointerDown);
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [showNotifications]);
 
     // =========================================================
     // LOAD NOTIFICATIONS
@@ -368,7 +405,7 @@ export default function Header({
                 {/* NOTIFICATION */}
                 {/* ================================================= */}
 
-                <div className="relative">
+                <div className="relative" ref={notificationRef}>
 
                     <button
                         type="button"

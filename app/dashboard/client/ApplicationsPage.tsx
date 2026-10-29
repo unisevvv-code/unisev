@@ -66,8 +66,6 @@ const AVATAR_COLORS = [
     "bg-teal-500",
 ];
 
-type TabKey = "all" | "open" | "accepted" | "rejected";
-
 export default function ApplicationsPage({
     goToWallet,
     goToMyTasks,
@@ -76,7 +74,6 @@ export default function ApplicationsPage({
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const [activeTab, setActiveTab] = useState<TabKey>("open");
     const [categoryFilter, setCategoryFilter] = useState("all");
     const [sortOrder, setSortOrder] =
         useState<"newest" | "oldest">("newest");
@@ -151,7 +148,7 @@ export default function ApplicationsPage({
     // value changes") so we don't trigger an extra cascading render.
     // =========================================================
 
-    const filterKey = `${activeTab}|${categoryFilter}|${sortOrder}`;
+    const filterKey = `${categoryFilter}|${sortOrder}`;
     const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
 
     if (filterKey !== prevFilterKey) {
@@ -540,6 +537,7 @@ export default function ApplicationsPage({
     const categories = Array.from(
         new Set(
             applications
+                .filter((app) => app.status === "pending")
                 .map((app) => app.tasks?.category)
                 .filter((category): category is string => Boolean(category))
         )
@@ -549,23 +547,8 @@ export default function ApplicationsPage({
         (app) => app.status === "pending"
     ).length;
 
-    const tabCounts: Record<TabKey, number> = {
-        all: applications.length,
-        open: openCount,
-        accepted: applications.filter(
-            (app) => app.status === "accepted" || app.status === "completed"
-        ).length,
-        rejected: applications.filter((app) => app.status === "rejected")
-            .length,
-    };
-
-    let filtered = applications.filter((app) => {
-        if (activeTab === "open") return app.status === "pending";
-        if (activeTab === "accepted")
-            return app.status === "accepted" || app.status === "completed";
-        if (activeTab === "rejected") return app.status === "rejected";
-        return true;
-    });
+    // Only open (pending) applications are shown on this page
+    let filtered = applications.filter((app) => app.status === "pending");
 
     if (categoryFilter !== "all") {
         filtered = filtered.filter(
@@ -586,13 +569,6 @@ export default function ApplicationsPage({
 
     const pageStart = (currentPage - 1) * PAGE_SIZE;
     const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
-
-    const TABS: { key: TabKey; label: string }[] = [
-        { key: "all", label: "All Applications" },
-        { key: "open", label: "Open" },
-        { key: "accepted", label: "Accepted" },
-        { key: "rejected", label: "Rejected" },
-    ];
 
     return (
         <div>
@@ -696,55 +672,16 @@ export default function ApplicationsPage({
 
                 <div className="flex flex-col gap-3 px-4 sm:px-5 pt-4">
 
-                    {/*
-                        Five tabs don't fit a phone's width, so this
-                        scrolls horizontally instead of wrapping —
-                        wrapped tab chips would look broken. Swipe to
-                        see the rest on small screens.
-                    */}
-                    <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                        {TABS.map((tab) => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`
-                                    shrink-0
-                                    whitespace-nowrap
-                                    pb-3
-                                    border-b-2
-                                    font-semibold
-                                    text-sm
-                                    flex
-                                    items-center
-                                    gap-1.5
-                                    ${
-                                        activeTab === tab.key
-                                            ? "border-blue-600 text-blue-600"
-                                            : "border-transparent text-gray-500 hover:text-gray-700"
-                                    }
-                                `}
-                            >
-                                {tab.label}
+                    <div className="flex items-center gap-1.5 pb-1">
+                        <h2 className="font-semibold text-sm text-blue-600">
+                            Open Applications
+                        </h2>
 
-                                {tabCounts[tab.key] > 0 && (
-                                    <span
-                                        className={`
-                                            text-xs
-                                            px-2
-                                            py-0.5
-                                            rounded-full
-                                            ${
-                                                activeTab === tab.key
-                                                    ? "bg-blue-100 text-blue-700"
-                                                    : "bg-gray-100 text-gray-600"
-                                            }
-                                        `}
-                                    >
-                                        {tabCounts[tab.key]}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
+                        {openCount > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                {openCount}
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pb-3">
@@ -797,7 +734,7 @@ export default function ApplicationsPage({
                 ) : pageItems.length === 0 ? (
 
                     <p className="text-center text-gray-500 py-10">
-                        No applications here.
+                        No open applications.
                     </p>
 
                 ) : (

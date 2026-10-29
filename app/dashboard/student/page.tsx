@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 import {
-    ShieldCheck,
     ClipboardCheck,
     Wallet as WalletIcon,
     CheckCircle2,
@@ -1457,27 +1456,6 @@ export default function StudentDashboard() {
                                 <p className="mt-2 text-gray-500 text-sm sm:text-base">
                                     {getGreeting(name, isFirstVisit, "student").subtitle}
                                 </p>
-
-                            </div>
-
-                            <div className="flex items-center gap-3 bg-white border rounded-xl px-4 py-3 w-full sm:w-auto">
-
-                                <div className="w-9 h-9 shrink-0 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                                    <ShieldCheck className="w-5 h-5" />
-                                </div>
-
-                                <div className="min-w-0">
-
-                                    <p className="text-sm font-semibold text-gray-900">
-                                        Account Status
-                                    </p>
-
-                                    <p className="text-sm text-green-600 flex items-center gap-1.5 truncate">
-                                        {profile.verification_status}
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                                    </p>
-
-                                </div>
 
                             </div>
 

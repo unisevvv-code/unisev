@@ -1,6 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+
+// ---------------------------------------------------------
+// Turns web addresses in plain text into clickable links.
+// Recognises http://, https:// and www. addresses only, so
+// nothing else (javascript:, data:, ...) can become a link.
+// ---------------------------------------------------------
+const URL_PATTERN = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+const TRAILING_PUNCTUATION = /[.,;:!?)\]}]+$/;
+
+function renderWithLinks(text?: string | null) {
+  if (!text) return null;
+
+  return text.split(URL_PATTERN).map((part, index) => {
+    // Odd positions are the matched web addresses
+    if (index % 2 === 0) {
+      return <Fragment key={index}>{part}</Fragment>;
+    }
+
+    const trailing =
+      part.match(TRAILING_PUNCTUATION)?.[0] || "";
+
+    const visible = trailing
+      ? part.slice(0, part.length - trailing.length)
+      : part;
+
+    const href = /^https?:\/\//i.test(visible)
+      ? visible
+      : `https://${visible}`;
+
+    return (
+      <Fragment key={index}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={(e) => e.stopPropagation()}
+          className="break-all font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700"
+        >
+          {visible}
+        </a>
+        {trailing}
+      </Fragment>
+    );
+  });
+}
 
 type Task = {
   id: string;
@@ -1222,7 +1267,7 @@ export default function BrowseTasks({
                       leading-7
                       text-slate-500
                     ">
-                      {task.description}
+                      {renderWithLinks(task.description)}
                     </p>
 
                   </div>

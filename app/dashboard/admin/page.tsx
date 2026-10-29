@@ -256,9 +256,6 @@ export default function AdminDashboard() {
     const [pendingVerifications, setPendingVerifications] =
         useState(0);
 
-    const [walletTransactions, setWalletTransactions] =
-        useState<EscrowPayment[]>([]);
-
     // Replaces the old alert() popups for approve / reject
     const [actionMessage, setActionMessage] =
         useState<ActionMessage | null>(null);
@@ -430,10 +427,6 @@ export default function AdminDashboard() {
 
         const releasedPayments: EscrowPayment[] =
             payments || [];
-
-        setWalletTransactions(
-            releasedPayments
-        );
 
         // ----------------------------------------------
         // TOTAL REVENUE

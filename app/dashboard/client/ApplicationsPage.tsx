@@ -74,7 +74,8 @@ export default function ApplicationsPage({
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const [categoryFilter, setCategoryFilter] = useState("all");
+    const [typeFilter, setTypeFilter] =
+        useState<"all" | "multi" | "single">("all");
     const [sortOrder, setSortOrder] =
         useState<"newest" | "oldest">("newest");
 
@@ -148,7 +149,7 @@ export default function ApplicationsPage({
     // value changes") so we don't trigger an extra cascading render.
     // =========================================================
 
-    const filterKey = `${categoryFilter}|${sortOrder}`;
+    const filterKey = `${typeFilter}|${sortOrder}`;
     const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
 
     if (filterKey !== prevFilterKey) {
@@ -534,15 +535,6 @@ export default function ApplicationsPage({
     // DERIVED DATA
     // =========================================================
 
-    const categories = Array.from(
-        new Set(
-            applications
-                .filter((app) => app.status === "pending")
-                .map((app) => app.tasks?.category)
-                .filter((category): category is string => Boolean(category))
-        )
-    );
-
     const openCount = applications.filter(
         (app) => app.status === "pending"
     ).length;
@@ -550,9 +542,14 @@ export default function ApplicationsPage({
     // Only open (pending) applications are shown on this page
     let filtered = applications.filter((app) => app.status === "pending");
 
-    if (categoryFilter !== "all") {
+    // Multi Task / Single Task filter. Tasks without a task_type
+    // are treated as single tasks (covers older tasks).
+    if (typeFilter !== "all") {
         filtered = filtered.filter(
-            (app) => app.tasks?.category === categoryFilter
+            (app) =>
+                (String(app.tasks?.task_type).toLowerCase() === "multi"
+                    ? "multi"
+                    : "single") === typeFilter
         );
     }
 
@@ -687,18 +684,17 @@ export default function ApplicationsPage({
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pb-3">
 
                         <select
-                            value={categoryFilter}
+                            value={typeFilter}
                             onChange={(e) =>
-                                setCategoryFilter(e.target.value)
+                                setTypeFilter(
+                                    e.target.value as "all" | "multi" | "single"
+                                )
                             }
                             className="w-full sm:w-auto border rounded-xl px-3 py-2 text-sm text-gray-600"
                         >
-                            <option value="all">Filter: All categories</option>
-                            {categories.map((category) => (
-                                <option key={category} value={category}>
-                                    {category}
-                                </option>
-                            ))}
+                            <option value="all">All</option>
+                            <option value="multi">Multi Task</option>
+                            <option value="single">Single Task</option>
                         </select>
 
                         <select

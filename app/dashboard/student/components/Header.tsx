@@ -337,7 +337,7 @@ export default function Header({
     // =========================================================
 
     return (
-       <header className="h-16 sm:h-20 bg-black border-b border-gray-800 px-4 sm:px-6 md:px-8 flex justify-between items-center">
+       <header className="sticky top-0 z-40 h-16 sm:h-20 bg-black border-b border-gray-800 px-4 sm:px-6 md:px-8 flex justify-between items-center">
 
             {/* ================================================= */}
             {/* LEFT: MOBILE MENU BUTTON + LOGO */}

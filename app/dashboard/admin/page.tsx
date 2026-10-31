@@ -260,6 +260,14 @@ export default function AdminDashboard() {
     const [actionMessage, setActionMessage] =
         useState<ActionMessage | null>(null);
 
+    // Admin switch: when ON, new verification requests are
+    // approved automatically by a database trigger
+    const [autoApprove, setAutoApprove] =
+        useState(false);
+
+    const [autoApproveSaving, setAutoApproveSaving] =
+        useState(false);
+
     // ==================================================
     // LOAD ADMIN OVERVIEW
     // ==================================================
@@ -987,6 +995,29 @@ export default function AdminDashboard() {
     }, []);
 
     // ==================================================
+    // LOAD AUTO-APPROVE SETTING
+    // ==================================================
+
+    const loadAutoApprove = useCallback(async () => {
+        const { data, error } = await supabase
+            .from("app_settings")
+            .select("value")
+            .eq("key", "auto_approve_students")
+            .single();
+
+        if (error) {
+            console.log(
+                "AUTO APPROVE LOAD ERROR:",
+                error
+            );
+
+            return;
+        }
+
+        setAutoApprove(!!data?.value);
+    }, []);
+
+    // ==================================================
     // ADMIN CHECK
     // ==================================================
 
@@ -1026,6 +1057,7 @@ export default function AdminDashboard() {
             loadAllStudents(),
             loadTasksList(),
             loadPayments(),
+            loadAutoApprove(),
         ]);
 
         setLoading(false);
@@ -1036,6 +1068,7 @@ export default function AdminDashboard() {
         loadAllStudents,
         loadTasksList,
         loadPayments,
+        loadAutoApprove,
     ]);
 
     useEffect(() => {
@@ -1140,6 +1173,45 @@ export default function AdminDashboard() {
         await loadStudents();
         await loadOverview();
         await loadAllStudents();
+    }
+
+    // ==================================================
+    // TOGGLE AUTO-APPROVE
+    // ==================================================
+
+    async function toggleAutoApprove() {
+        setAutoApproveSaving(true);
+        setActionMessage(null);
+
+        const next = !autoApprove;
+
+        const { error } = await supabase
+            .from("app_settings")
+            .update({
+                value: next,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("key", "auto_approve_students");
+
+        if (error) {
+            setActionMessage({
+                type: "error",
+                text:
+                    "Could not update auto-approve: " +
+                    error.message,
+            });
+        } else {
+            setAutoApprove(next);
+
+            setActionMessage({
+                type: "success",
+                text: next
+                    ? "Auto-approve is ON. New verification requests will be approved automatically."
+                    : "Auto-approve is OFF. New requests will wait for manual review.",
+            });
+        }
+
+        setAutoApproveSaving(false);
     }
 
     // ==================================================
@@ -1287,6 +1359,39 @@ export default function AdminDashboard() {
                                 {actionMessage.text}
                             </div>
                         )}
+
+                        <div className="bg-white border rounded-2xl p-5 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="font-semibold text-slate-900">
+                                    Auto-approve new students
+                                </p>
+                                <p className="text-sm text-slate-500">
+                                    {autoApprove
+                                        ? "New verification requests are approved automatically."
+                                        : "New verification requests wait for manual review."}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={autoApprove}
+                                onClick={toggleAutoApprove}
+                                disabled={autoApproveSaving}
+                                className={`
+                                    relative h-6 w-11 shrink-0 rounded-full transition
+                                    disabled:opacity-60
+                                    ${autoApprove ? "bg-green-500" : "bg-slate-300"}
+                                `}
+                            >
+                                <span
+                                    className={`
+                                        absolute top-0.5 h-5 w-5 rounded-full bg-white transition
+                                        ${autoApprove ? "left-5" : "left-0.5"}
+                                    `}
+                                />
+                            </button>
+                        </div>
 
                         {students.length === 0 ? (
                             <div className="bg-white border rounded-2xl p-8">
